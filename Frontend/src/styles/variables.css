@@ -1,0 +1,122 @@
+/* ========================================
+   WAZUH DESIGN TOKENS — Light & Dark
+   ======================================== */
+
+:root {
+  /* Font */
+  --font-family:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Sizing */
+  --sidebar-width: 260px;
+  --header-height: 56px;
+  --input-max-width: 768px;
+  --chat-max-width: 768px;
+  --border-radius-sm: 8px;
+  --border-radius-md: 16px;
+  --border-radius-lg: 24px;
+  --border-radius-xl: 28px;
+
+  /* Transition */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-theme: 0.35s ease;
+}
+
+/* ===== LIGHT THEME ===== */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-sidebar: #f0f2f5;
+  --bg-sidebar-hover: #e4e7eb;
+  --bg-sidebar-active: #d9dee4;
+  --bg-input: #f4f4f5;
+  --bg-input-focus: #ffffff;
+  --bg-user-msg: #3595f9;
+  --bg-assistant-msg: #f0f2f5;
+  --bg-code: #f6f8fa;
+  --bg-modal: #ffffff;
+  --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+  --bg-suggestion: #ffffff;
+  --bg-suggestion-hover: #f0f5ff;
+
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-on-accent: #ffffff;
+  --text-sidebar: #374151;
+  --text-sidebar-hover: #111827;
+
+  --accent: #3595f9;
+  --accent-hover: #2b7ad9;
+  --accent-light: rgba(53, 149, 249, 0.1);
+  --accent-yellow: #fedd0b;
+  --accent-yellow-hover: #e5c700;
+  --accent-lavender: #ebd0fc;
+
+  --border-primary: #e5e7eb;
+  --border-secondary: #f3f4f6;
+  --border-input: #d1d5db;
+  --border-input-focus: #3595f9;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+  --shadow-input: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-input-focus: 0 2px 12px rgba(53, 149, 249, 0.15);
+
+  --scrollbar-thumb: #c1c7ce;
+  --scrollbar-track: transparent;
+
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+}
+
+/* ===== DARK THEME ===== */
+[data-theme="dark"] {
+  --bg-primary: #171717;
+  --bg-secondary: #1e1e1e;
+  --bg-sidebar: #111111;
+  --bg-sidebar-hover: #1e1e1e;
+  --bg-sidebar-active: #2a2a2a;
+  --bg-input: #2f2f2f;
+  --bg-input-focus: #3a3a3a;
+  --bg-user-msg: #3595f9;
+  --bg-assistant-msg: #212121;
+  --bg-code: #1e1e1e;
+  --bg-modal: #1e1e1e;
+  --bg-modal-overlay: rgba(0, 0, 0, 0.7);
+  --bg-suggestion: #212121;
+  --bg-suggestion-hover: #1a2a40;
+
+  --text-primary: #ececf1;
+  --text-secondary: #8e8ea0;
+  --text-tertiary: #6b6b7b;
+  --text-on-accent: #ffffff;
+  --text-sidebar: #b4b4b4;
+  --text-sidebar-hover: #ececf1;
+
+  --accent: #3595f9;
+  --accent-hover: #5aadff;
+  --accent-light: rgba(53, 149, 249, 0.15);
+  --accent-yellow: #fedd0b;
+  --accent-yellow-hover: #ffe94d;
+  --accent-lavender: #ebd0fc;
+
+  --border-primary: #2d2d2d;
+  --border-secondary: #262626;
+  --border-input: #3e3e3e;
+  --border-input-focus: #3595f9;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --shadow-input: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-input-focus: 0 2px 12px rgba(53, 149, 249, 0.25);
+
+  --scrollbar-thumb: #3e3e3e;
+  --scrollbar-track: transparent;
+
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+}
