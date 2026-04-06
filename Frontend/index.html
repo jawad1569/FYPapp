@@ -47,6 +47,36 @@
           </button>
         </div>
 
+        <!-- Sentinel Button -->
+        <button class="sentinel-btn" id="sentinelBtn">
+          <div class="sentinel-btn-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Sentinel</span>
+          </div>
+          <div class="sentinel-btn-badges">
+            <span class="sentinel-count-badge sentinel-count--offense" id="offenseCountBadge">0</span>
+            <span class="sentinel-count-badge sentinel-count--source" id="sourceCountBadge">0</span>
+          </div>
+        </button>
+
+        <!-- Sentinel Sidebar Panel (overlay) -->
+        <div class="sentinel-sidebar-panel" id="sentinelSidebarPanel">
+          <div class="sentinel-sidebar-nav">
+            <button class="sentinel-back-btn" id="sentinelBackBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Back
+            </button>
+            <span>Sentinel</span>
+          </div>
+          <div class="sentinel-tabs">
+            <button class="sentinel-tab active" data-tab="offenses">Offenses</button>
+            <button class="sentinel-tab" data-tab="sources">Log Sources</button>
+          </div>
+          <div class="sentinel-sidebar-list" id="sentinelSidebarList"></div>
+        </div>
+
         <button class="new-chat-btn" id="newChatBtn">
           <svg
             width="18"
@@ -116,7 +146,7 @@
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <div class="model-selector">
+          <div class="model-selector" style="display:none;">
             <span class="model-name">WazuhBot</span>
             <svg
               width="14"
@@ -181,6 +211,15 @@
           </div>
         </div>
 
+        <!-- Sentinel Dashboard (hidden by default) -->
+        <div class="sentinel-dashboard" id="sentinelDashboard">
+          <div class="sentinel-dash-header">
+            <h2>Sentinel Overview</h2>
+            <span class="sentinel-status-pill" id="sentinelStatusPill">● LOADING</span>
+          </div>
+          <div class="sentinel-cards" id="sentinelCards"></div>
+        </div>
+
         <!-- Input Bar -->
         <div class="input-area">
           <div class="input-container" id="inputContainer">
@@ -212,6 +251,14 @@
           </div>
         </div>
       </main>
+      <!-- Sentinel Live Log Panel -->
+      <div class="sentinel-log-panel" id="sentinelLogPanel">
+        <div class="sentinel-log-header">
+          <span>⬤ Live Logs</span>
+          <span id="sentinelLogEps">— EPS</span>
+        </div>
+        <div class="sentinel-log-feed" id="sentinelLogFeed"></div>
+      </div>
     </div>
 
     <!-- ===== SETTINGS MODAL ===== -->

@@ -4,6 +4,7 @@
 
 import { initTheme }    from './theme.js';
 import { initSettings } from './settings.js';
+import { initSentinel } from './sentinel.js';
 
 /* ── State ── */
 let chats = [];          // { id, title, messages: [{ role, content, timestamp }] }
@@ -35,8 +36,16 @@ const RESPONSES = [
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {
+  // Auth guard — redirect to login if no token
+  const token = localStorage.getItem('wazuhbot-token');
+  if (!token) {
+    window.location.href = '/login.html';
+    return;
+  }
+
   initTheme();
   initSettings({ onDeleteAll: deleteAllChats });
+  initSentinel();
   loadChats();
   bindEvents();
 });
