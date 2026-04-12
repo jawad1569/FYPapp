@@ -59,8 +59,8 @@ router.post('/signup', async (req, res) => {
       },
     });
   } catch (err) {
-    // ORA-00001: unique constraint violated (duplicate email)
-    if (err.errorNum === 1) {
+    // MySQL ER_DUP_ENTRY: duplicate email
+    if (err.errno === 1062) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
     }
     console.error('Signup error:', err);
