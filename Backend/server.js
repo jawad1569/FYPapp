@@ -4,6 +4,7 @@ const mysql   = require('mysql2/promise');
 const cors    = require('cors');
 
 const authRoutes = require('./routes/auth');
+const mlRoutes   = require('./routes/ml');
 const { getDb }  = require('./models/User');
 
 const app  = express();
@@ -15,6 +16,7 @@ app.use(express.json());
 
 /* ── Routes ── */
 app.use('/api/auth', authRoutes);
+app.use('/api/ml',   mlRoutes);
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => {
