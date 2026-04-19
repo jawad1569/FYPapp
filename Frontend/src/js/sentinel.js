@@ -1,11 +1,50 @@
 /* ========================================
    WAZUHBOT — Sentinel Panel
+   Configurable intervals + Gmail email alerts
    ======================================== */
 
 let sentinelActive = false;
 let sentinelTab    = 'offenses';
 let logInterval    = null;
 let dataInterval   = null;
+
+/* ── API Config ── */
+const SENTINEL_API = window.location.hostname === 'localhost'
+  ? 'http://localhost:5000/api'
+  : '/api';
+
+/* ── Configurable Intervals (ms) — persisted in localStorage ── */
+const DEFAULT_INTERVALS = {
+  logStream:      1200,    // Live log stream refresh (ms)
+  epsUpdate:      2000,    // EPS jitter update (ms)
+  offenseCheck:   30000,   // Check for new offenses (ms)
+  sourceCheck:    60000,   // Check log source status (ms)
+};
+
+function loadIntervals() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('wazuhbot-sentinel-intervals'));
+    return { ...DEFAULT_INTERVALS, ...stored };
+  } catch { return { ...DEFAULT_INTERVALS }; }
+}
+
+function saveIntervals(intervals) {
+  localStorage.setItem('wazuhbot-sentinel-intervals', JSON.stringify(intervals));
+}
+
+let intervals = loadIntervals();
+
+/* ── Email Alert Settings ── */
+function isEmailAlertsEnabled() {
+  return localStorage.getItem('wazuhbot-email-alerts') === 'true';
+}
+
+function setEmailAlertsEnabled(enabled) {
+  localStorage.setItem('wazuhbot-email-alerts', enabled ? 'true' : 'false');
+}
+
+// Track already-alerted offenses to avoid duplicate emails
+let alertedOffenseIds = new Set();
 
 /* ── Mock Data ── */
 const OFFENSES = [
@@ -54,6 +93,7 @@ const nowTime = ()  => new Date().toLocaleTimeString('en-US', { hour12: false })
    ────────────────────────────────────────── */
 export function initSentinel() {
   updateBadges();
+  checkAndAlertCritical();   // check on load
 
   document.getElementById('sentinelBtn').addEventListener('click', openSentinel);
   document.getElementById('sentinelBackBtn').addEventListener('click', closeSentinel);
@@ -80,6 +120,7 @@ function openSentinel() {
 
   renderSidebarList();
   renderDashboardCards();
+  renderIntervalSettings();
   startLogStream();
   startDataUpdates();
 }
@@ -104,7 +145,7 @@ function updateBadges() {
 
   document.getElementById('offenseCountBadge').textContent = OFFENSES.length;
   document.getElementById('sourceCountBadge').textContent  =
-    badSources > 0 ? `${badSources} ⚠` : `${LOG_SOURCES.length} ✓`;
+    badSources > 0 ? `${badSources} !` : `${LOG_SOURCES.length} OK`;
 
   const btn = document.getElementById('sentinelBtn');
   btn.classList.toggle('sentinel-btn--critical', criticalHigh > 0);
@@ -222,6 +263,153 @@ function renderDashboardCards() {
   `;
 }
 
+/* ══════════════════════════════════════════════
+   INTERVAL SETTINGS PANEL
+   ══════════════════════════════════════════════ */
+function renderIntervalSettings() {
+  const container = document.getElementById('sentinelCards');
+  if (!container) return;
+
+  // Append the settings card after the existing cards
+  const settingsCard = document.createElement('div');
+  settingsCard.className = 'sentinel-settings-card';
+  settingsCard.innerHTML = `
+    <div class="sentinel-settings-header">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Sentinel Settings</span>
+    </div>
+
+    <div class="sentinel-interval-group">
+      <label class="sentinel-interval-label">
+        <span>Log Stream Refresh</span>
+        <div class="sentinel-interval-control">
+          <input type="range" min="500" max="5000" step="100" value="${intervals.logStream}" data-key="logStream" class="sentinel-slider" />
+          <span class="sentinel-interval-value" id="val-logStream">${(intervals.logStream / 1000).toFixed(1)}s</span>
+        </div>
+      </label>
+
+      <label class="sentinel-interval-label">
+        <span>EPS Update</span>
+        <div class="sentinel-interval-control">
+          <input type="range" min="1000" max="10000" step="500" value="${intervals.epsUpdate}" data-key="epsUpdate" class="sentinel-slider" />
+          <span class="sentinel-interval-value" id="val-epsUpdate">${(intervals.epsUpdate / 1000).toFixed(1)}s</span>
+        </div>
+      </label>
+
+      <label class="sentinel-interval-label">
+        <span>Offense Check</span>
+        <div class="sentinel-interval-control">
+          <input type="range" min="5000" max="120000" step="5000" value="${intervals.offenseCheck}" data-key="offenseCheck" class="sentinel-slider" />
+          <span class="sentinel-interval-value" id="val-offenseCheck">${(intervals.offenseCheck / 1000)}s</span>
+        </div>
+      </label>
+
+      <label class="sentinel-interval-label">
+        <span>Source Check</span>
+        <div class="sentinel-interval-control">
+          <input type="range" min="10000" max="300000" step="10000" value="${intervals.sourceCheck}" data-key="sourceCheck" class="sentinel-slider" />
+          <span class="sentinel-interval-value" id="val-sourceCheck">${(intervals.sourceCheck / 1000)}s</span>
+        </div>
+      </label>
+    </div>
+
+    <div class="sentinel-email-section">
+      <div class="sentinel-email-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        <span>Email Alerts</span>
+      </div>
+      <div class="sentinel-email-toggle-row">
+        <span>Send email on critical offenses</span>
+        <label class="sentinel-toggle">
+          <input type="checkbox" id="emailAlertToggle" ${isEmailAlertsEnabled() ? 'checked' : ''} />
+          <span class="sentinel-toggle-track"></span>
+        </label>
+      </div>
+      <p class="sentinel-email-hint">Alerts sent to your registered email when critical or high severity offenses are detected.</p>
+    </div>
+  `;
+
+  container.parentNode.insertBefore(settingsCard, container.nextSibling);
+
+  // Bind slider events
+  settingsCard.querySelectorAll('.sentinel-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const key = e.target.dataset.key;
+      const val = parseInt(e.target.value);
+      intervals[key] = val;
+      const display = val >= 1000 ? `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}s` : `${val}ms`;
+      document.getElementById(`val-${key}`).textContent = display;
+      saveIntervals(intervals);
+
+      // Restart affected timers immediately
+      if (sentinelActive) {
+        clearInterval(logInterval);
+        clearInterval(dataInterval);
+        startLogStream();
+        startDataUpdates();
+      }
+    });
+  });
+
+  // Bind email toggle
+  const emailToggle = document.getElementById('emailAlertToggle');
+  if (emailToggle) {
+    emailToggle.addEventListener('change', (e) => {
+      setEmailAlertsEnabled(e.target.checked);
+    });
+  }
+}
+
+/* ══════════════════════════════════════════════
+   EMAIL ALERT SYSTEM
+   ══════════════════════════════════════════════ */
+function getUserEmail() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('wazuhbot-user'));
+    return stored?.email || null;
+  } catch { return null; }
+}
+
+async function sendAlertEmail(offense) {
+  if (!isEmailAlertsEnabled()) return;
+
+  const email = getUserEmail();
+  if (!email) return;
+
+  // Don't re-alert the same offense
+  if (alertedOffenseIds.has(offense.id)) return;
+  alertedOffenseIds.add(offense.id);
+
+  try {
+    const token = localStorage.getItem('wazuhbot-token');
+    await fetch(`${SENTINEL_API}/alerts/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        email,
+        alertData: {
+          offenseName: offense.name,
+          severity:    offense.severity,
+          source:      offense.source,
+          count:       offense.count,
+          timestamp:   new Date().toISOString(),
+          details:     `Detected ${offense.ago} minutes ago with ${offense.count} related events.`,
+        },
+      }),
+    });
+  } catch (err) {
+    console.warn('Email alert failed:', err.message);
+  }
+}
+
+function checkAndAlertCritical() {
+  const criticals = OFFENSES.filter(o => o.severity === 'critical' || o.severity === 'high');
+  criticals.forEach(offense => sendAlertEmail(offense));
+}
+
 /* ── Live log stream ── */
 function startLogStream() {
   const feed = document.getElementById('sentinelLogFeed');
@@ -245,7 +433,7 @@ function startLogStream() {
   }
 
   addLog();
-  logInterval = setInterval(addLog, 900 + Math.random() * 600);
+  logInterval = setInterval(addLog, intervals.logStream);
 }
 
 /* ── Live EPS jitter ── */
@@ -256,7 +444,7 @@ function startDataUpdates() {
     const base   = LOG_SOURCES.reduce((a, s) => a + s.eps, 0);
     const jitter = Math.floor((Math.random() - 0.5) * 40);
     el.textContent = Math.max(0, base + jitter);
-  }, 2000);
+  }, intervals.epsUpdate);
 }
 
 function updateEps() {

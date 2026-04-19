@@ -7,8 +7,14 @@ import { initSettings } from './settings.js';
 import { initSentinel } from './sentinel.js';
 
 /* ── State ── */
-let chats = [];          // { id, title, messages: [{ role, content, timestamp }] }
+let chats = [];          // { id, title, messages: [{ role, content, timestamp, toolCalls?, sources? }] }
 let activeChatId = null;
+let isWaitingForResponse = false;
+
+/* ── API Config ── */
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:5000/api'
+  : '/api';
 
 /* ── DOM refs ── */
 const chatList       = document.getElementById('chatList');
@@ -20,19 +26,6 @@ const newChatBtn     = document.getElementById('newChatBtn');
 const sidebar        = document.getElementById('sidebar');
 const sidebarToggle  = document.getElementById('sidebarToggleBtn');
 const sidebarClose   = document.getElementById('sidebarCloseBtn');
-
-/* ── Simulated responses ── */
-const RESPONSES = [
-  "Wazuh is an open-source security platform that provides unified XDR and SIEM protection. It helps organizations detect threats, integrity monitoring, incident response, and compliance.\n\nHere's what I can help you with:\n\n• **Threat Detection** — Configure rules and decoders\n• **Agent Management** — Deploy and monitor agents\n• **Log Analysis** — Parse and correlate security events\n• **Compliance** — PCI DSS, HIPAA, GDPR reporting\n\nWhat would you like to know more about?",
-
-  "To install a Wazuh agent on Ubuntu, follow these steps:\n\n**1. Import the GPG key:**\n```\ncurl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import\n```\n\n**2. Add the repository:**\n```\necho \"deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main\" | tee /etc/apt/sources.list.d/wazuh.list\n```\n\n**3. Install the agent:**\n```\napt-get update && apt-get install wazuh-agent\n```\n\n**4. Register with your manager:**\nEdit `/var/ossec/etc/ossec.conf` and set the manager IP, then restart the service.\n\nWould you like me to walk you through the configuration in detail?",
-
-  "Here are some commonly used Wazuh rules for threat detection:\n\n| Rule ID | Description | Level |\n|---------|------------|-------|\n| 5710 | SSH login attempt | 5 |\n| 5712 | SSH brute force | 10 |\n| 550 | Integrity checksum changed | 7 |\n| 554 | File added to the system | 5 |\n| 80790 | Windows audit failure | 5 |\n\nYou can customize these rules by creating local rules in `/var/ossec/etc/rules/local_rules.xml`.\n\nNeed help writing a custom rule for a specific use case?",
-
-  "I'd be happy to help you analyze a security alert! To get started, I'll need a few pieces of information:\n\n1. **Alert Rule ID** — The specific Wazuh rule that triggered\n2. **Agent Name/ID** — Which endpoint generated the alert\n3. **Timestamp** — When the alert occurred\n4. **Full log** — The raw log data if available\n\nIn general, here's the analysis workflow I follow:\n\n• **Contextualize** — Understand what the rule detects\n• **Correlate** — Look for related events in the same timeframe\n• **Assess** — Determine if it's true positive or false positive\n• **Respond** — Recommend containment or tuning actions\n\nPaste the alert details and I'll analyze them for you!",
-
-  "Great question! Let me explain the key differences between Wazuh SIEM and traditional SIEM solutions:\n\n**Wazuh Advantages:**\n- 🔓 **Open Source** — No licensing costs\n- 📊 **Unified Platform** — XDR + SIEM in one\n- 🔄 **Active Response** — Automated threat remediation\n- 📱 **Endpoint Visibility** — Lightweight agents on every host\n\n**Architecture Overview:**\nWazuh uses a manager-agent model. The **Wazuh Manager** receives and processes events from **Wazuh Agents** installed on monitored endpoints. Data is indexed in **Wazuh Indexer** (OpenSearch-based) and visualized through the **Wazuh Dashboard**.\n\nShall I dive deeper into any specific component?"
-];
 
 /* ── Boot ── */
 document.addEventListener('DOMContentLoaded', () => {
@@ -167,7 +160,7 @@ function loadChats() {
 /* ── Send ── */
 function handleSend() {
   const text = chatInput.value.trim();
-  if (!text) return;
+  if (!text || isWaitingForResponse) return;
 
   // If no chat exists yet, create one
   if (!activeChatId) {
@@ -200,30 +193,90 @@ function handleSend() {
   scrollToBottom();
   saveChats();
 
-  // Simulate assistant response
-  simulateResponse(chat);
+  // Call real chatbot API
+  sendToChatbot(chat, text);
 }
 
-function simulateResponse(chat) {
-  // Show typing indicator
+/* ── API Call to Chatbot ── */
+async function sendToChatbot(chat, userMessage) {
+  isWaitingForResponse = true;
   appendTypingIndicator();
   scrollToBottom();
 
-  const delay = 800 + Math.random() * 1200;
-  setTimeout(() => {
+  // Build history for the API (exclude the message we just sent — it goes as 'message')
+  const history = chat.messages
+    .slice(0, -1)  // exclude the last user message (sent separately)
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }));
+
+  try {
+    const token = localStorage.getItem('wazuhbot-token');
+    const response = await fetch(`${API_BASE}/chat/message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        history: history,
+        context: {},
+      }),
+    });
+
     removeTypingIndicator();
 
-    const responseText = RESPONSES[Math.floor(Math.random() * RESPONSES.length)];
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || errData.details || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // Add assistant response to chat
     chat.messages.push({
       role: 'assistant',
-      content: responseText,
+      content: data.response || 'No response received.',
       timestamp: Date.now(),
+      toolCalls: data.tool_calls || [],
+      sources: data.sources || [],
     });
 
     renderMessages();
     scrollToBottom();
     saveChats();
-  }, delay);
+
+  } catch (err) {
+    removeTypingIndicator();
+    console.error('Chatbot error:', err);
+
+    // Add error message as assistant response
+    const errorContent = getChatbotErrorMessage(err.message);
+
+    chat.messages.push({
+      role: 'assistant',
+      content: errorContent,
+      timestamp: Date.now(),
+      isError: true,
+    });
+
+    renderMessages();
+    scrollToBottom();
+    saveChats();
+
+  } finally {
+    isWaitingForResponse = false;
+  }
+}
+
+function getChatbotErrorMessage(errMsg) {
+  if (errMsg.includes('unreachable') || errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError')) {
+    return `⚠️ **Chatbot service is not running.**\n\nTo start the chatbot, run:\n\`\`\`\ncd Backend/chatbot\npython chatbot_server.py\n\`\`\`\n\nMake sure Ollama is also running with the model pulled:\n\`\`\`\nollama pull qwen2.5:3b\n\`\`\``;
+  }
+  if (errMsg.includes('not installed') || errMsg.includes('not found')) {
+    return `⚠️ **LLM model not found.**\n\nPlease pull the model:\n\`\`\`\nollama pull qwen2.5:3b\n\`\`\`\nThen restart the chatbot service.`;
+  }
+  return `⚠️ **Something went wrong:** ${errMsg}\n\nPlease check the backend logs and try again.`;
 }
 
 /* ── Rendering ── */
@@ -283,17 +336,17 @@ function createWelcomeScreen() {
     </div>
     <h1 class="welcome-title">How can I help you today?</h1>
     <div class="suggestion-cards">
-      <button class="suggestion-card" data-prompt="Explain what Wazuh is and how it works">
+      <button class="suggestion-card" data-prompt="Show me recent critical security alerts">
         <div class="suggestion-icon">🛡️</div>
-        <div class="suggestion-text">Explain what Wazuh is and how it works</div>
+        <div class="suggestion-text">Show me recent critical security alerts</div>
       </button>
-      <button class="suggestion-card" data-prompt="How do I set up a Wazuh agent on Ubuntu?">
-        <div class="suggestion-icon">🐧</div>
-        <div class="suggestion-text">How do I set up a Wazuh agent on Ubuntu?</div>
+      <button class="suggestion-card" data-prompt="Are there any brute force attacks happening right now?">
+        <div class="suggestion-icon">🔐</div>
+        <div class="suggestion-text">Are there any brute force attacks right now?</div>
       </button>
-      <button class="suggestion-card" data-prompt="Show me common Wazuh rules for detecting threats">
-        <div class="suggestion-icon">📋</div>
-        <div class="suggestion-text">Show me common Wazuh rules for detecting threats</div>
+      <button class="suggestion-card" data-prompt="Give me a summary of active agents and their status">
+        <div class="suggestion-icon">📡</div>
+        <div class="suggestion-text">Summary of active agents and their status</div>
       </button>
       <button class="suggestion-card" data-prompt="Help me analyze a security alert from my Wazuh dashboard">
         <div class="suggestion-icon">🔍</div>
@@ -329,12 +382,50 @@ function createMessageRow(msg) {
       </div>
     `;
   } else {
+    // Build tool calls indicator
+    let toolCallsHtml = '';
+    if (msg.toolCalls && msg.toolCalls.length > 0) {
+      const toolItems = msg.toolCalls.map(tc => {
+        const args = typeof tc.arguments === 'object'
+          ? Object.entries(tc.arguments).map(([k,v]) => `${k}: ${v}`).join(', ')
+          : '';
+        return `<div class="tool-call-item">
+          <span class="tool-call-icon">🔧</span>
+          <span class="tool-call-name">${escapeHtml(tc.tool)}</span>
+          ${args ? `<span class="tool-call-args">(${escapeHtml(args)})</span>` : ''}
+        </div>`;
+      }).join('');
+
+      toolCallsHtml = `
+        <div class="tool-calls-indicator">
+          <div class="tool-calls-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            <span>Tools Used</span>
+          </div>
+          ${toolItems}
+        </div>
+      `;
+    }
+
+    // Build sources indicator
+    let sourcesHtml = '';
+    if (msg.sources && msg.sources.length > 0) {
+      sourcesHtml = `
+        <div class="sources-indicator">
+          <span class="sources-label">📚 Sources:</span>
+          ${msg.sources.map(s => `<span class="source-tag">${escapeHtml(s)}</span>`).join('')}
+        </div>
+      `;
+    }
+
     row.innerHTML = `
       <div class="message-avatar assistant-avatar">
         <img src="/logo.png" alt="WazuhBot" />
       </div>
       <div class="message-content">
-        <div class="message-bubble">${formatMarkdown(msg.content)}</div>
+        ${toolCallsHtml}
+        <div class="message-bubble ${msg.isError ? 'message-error' : ''}">${formatMarkdown(msg.content)}</div>
+        ${sourcesHtml}
       </div>
     `;
   }
@@ -353,6 +444,7 @@ function appendTypingIndicator() {
     </div>
     <div class="message-content">
       <div class="typing-indicator">
+        <div class="typing-label">Thinking</div>
         <div class="dot"></div>
         <div class="dot"></div>
         <div class="dot"></div>
@@ -428,6 +520,9 @@ function formatMarkdown(text) {
   html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
   // Clean up nested uls
   html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+  // Numbered lists
+  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
 
   // Tables (simple)
   html = html.replace(/((?:\|.+\|\n?)+)/g, (match) => {

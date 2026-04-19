@@ -479,6 +479,18 @@ body {
   padding: 8px 0;
 }
 
+.typing-indicator .typing-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-right: 6px;
+  animation: typingPulse 1.5s ease infinite;
+}
+
+@keyframes typingPulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
 .typing-indicator .dot {
   width: 8px;
   height: 8px;
@@ -487,9 +499,9 @@ body {
   animation: typingBounce 1.4s infinite ease-in-out;
 }
 
-.typing-indicator .dot:nth-child(1) { animation-delay: 0s; }
-.typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+.typing-indicator .dot:nth-child(2) { animation-delay: 0s; }
+.typing-indicator .dot:nth-child(3) { animation-delay: 0.2s; }
+.typing-indicator .dot:nth-child(4) { animation-delay: 0.4s; }
 
 @keyframes typingBounce {
   0%, 60%, 100% {
@@ -500,6 +512,106 @@ body {
     transform: translateY(-8px);
     opacity: 1;
   }
+}
+
+/* ===== TOOL CALLS INDICATOR ===== */
+.tool-calls-indicator {
+  background: var(--bg-code);
+  border: 1px solid var(--border-primary);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--border-radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  animation: toolCallIn 0.4s ease;
+}
+
+@keyframes toolCallIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.tool-calls-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  color: var(--text-secondary);
+}
+
+.tool-call-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+}
+
+.tool-call-args {
+  color: var(--text-tertiary);
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+/* ===== RAG SOURCES INDICATOR ===== */
+.sources-indicator {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.sources-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.source-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(124, 58, 237, 0.12);
+  color: #8b5cf6;
+  letter-spacing: 0.3px;
+}
+
+[data-theme="light"] .source-tag {
+  background: rgba(124, 58, 237, 0.08);
+  color: #7c3aed;
+}
+
+/* ===== ERROR MESSAGES ===== */
+.message-error {
+  border-left: 3px solid #ef4444;
+  padding-left: 12px !important;
+  background: rgba(239, 68, 68, 0.04);
+  border-radius: var(--border-radius-sm);
+  padding: 12px;
 }
 
 /* ===== INPUT AREA ===== */
@@ -1347,4 +1459,203 @@ body {
   line-height: 1.45;
   word-break: break-word;
   transition: color var(--transition-theme);
+}
+
+/* ========================================
+   SENTINEL — Settings Card (Intervals + Email)
+   ======================================== */
+.sentinel-settings-card {
+  grid-column: 1 / -1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  transition: all var(--transition-fast);
+  animation: fadeInUp 0.4s ease;
+}
+
+.sentinel-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-secondary);
+  transition: color var(--transition-theme), border-color var(--transition-theme);
+}
+
+.sentinel-settings-header svg {
+  color: var(--accent);
+}
+
+.sentinel-interval-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.sentinel-interval-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sentinel-interval-label > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--transition-theme);
+}
+
+.sentinel-interval-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sentinel-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-primary);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: background var(--transition-theme);
+}
+
+.sentinel-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.sentinel-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.sentinel-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+}
+
+.sentinel-interval-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: right;
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* ── Email Alert Section ── */
+.sentinel-email-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-secondary);
+  transition: border-color var(--transition-theme);
+}
+
+.sentinel-email-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  transition: color var(--transition-theme);
+}
+
+.sentinel-email-header svg {
+  color: var(--accent);
+}
+
+.sentinel-email-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.sentinel-email-toggle-row span {
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: color var(--transition-theme);
+}
+
+.sentinel-email-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 6px;
+  line-height: 1.5;
+  transition: color var(--transition-theme);
+}
+
+/* ── Toggle Switch ── */
+.sentinel-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.sentinel-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.sentinel-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: var(--border-primary);
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+
+.sentinel-toggle-track::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.sentinel-toggle input:checked + .sentinel-toggle-track {
+  background: var(--accent);
+}
+
+.sentinel-toggle input:checked + .sentinel-toggle-track::before {
+  transform: translateX(18px);
+}
+
+@media (max-width: 768px) {
+  .sentinel-interval-group {
+    grid-template-columns: 1fr;
+  }
 }

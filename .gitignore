@@ -6,3 +6,6 @@ dist/
 # Large files
 dataset/
 output/*.pkl
+
+# Chatbot
+Backend/chatbot/vectorstore/

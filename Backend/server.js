@@ -3,8 +3,10 @@ const express = require('express');
 const mysql   = require('mysql2/promise');
 const cors    = require('cors');
 
-const authRoutes = require('./routes/auth');
-const mlRoutes   = require('./routes/ml');
+const authRoutes   = require('./routes/auth');
+const mlRoutes     = require('./routes/ml');
+const chatRoutes   = require('./routes/chat');
+const alertRoutes  = require('./routes/alerts');
 const { getDb }  = require('./models/User');
 
 const app  = express();
@@ -15,8 +17,10 @@ app.use(cors());
 app.use(express.json());
 
 /* ── Routes ── */
-app.use('/api/auth', authRoutes);
-app.use('/api/ml',   mlRoutes);
+app.use('/api/auth',   authRoutes);
+app.use('/api/ml',     mlRoutes);
+app.use('/api/chat',   chatRoutes);
+app.use('/api/alerts', alertRoutes);
 
 /* ── Health check ── */
 app.get('/api/health', (_req, res) => {
