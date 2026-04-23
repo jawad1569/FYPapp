@@ -1,4 +1,5 @@
 from mcp.server.fastmcp import FastMCP
+import os
 import json
 import urllib.request
 import urllib.parse
@@ -8,10 +9,11 @@ import base64
 
 # ==== Wazuh Indexer MCP - QRadar Feature Parity ====
 
-# --- Configuration ---
-WAZUH_INDEXER_URL = "https://localhost:9200" # Replace with your IP
-WAZUH_USER = "admin"
-WAZUH_PASS = "SecretPassword"
+# --- Configuration (injected via env vars by mcp_bridge.py) ---
+_WAZUH_IP = os.environ.get("WAZUH_IP", "127.0.0.1")
+WAZUH_INDEXER_URL = f"https://{_WAZUH_IP}:9200"
+WAZUH_USER = os.environ.get("WAZUH_USER", "admin")
+WAZUH_PASS = os.environ.get("WAZUH_PASS", "")
 
 # --- Create MCP Server ---
 mcp = FastMCP("Wazuh QRadar Parity")

@@ -35,23 +35,79 @@ MAX_HISTORY_TURNS = 20
 # ── System prompt ──
 SYSTEM_PROMPT = """You are WazuhBot, an expert AI security assistant for the Wazuh SIEM/XDR platform.
 
-Your capabilities:
-1. **Explain security data** — Analyze alerts, ML predictions, and log patterns. Provide clear reasoning about what threats mean, their severity, and their potential impact.
-2. **Recommend actions** — Based on detected threats, suggest specific remediation steps following security best practices.
-3. **Execute actions** — When the user explicitly confirms, use the available Wazuh tools to perform operations like querying alerts, restarting agents, running scans, or executing active responses.
+## Core Workflow — Follow This For Every Threat/Attack Question
 
-Guidelines:
-- Always explain WHY something is a threat before suggesting actions
-- When presenting data from tools, summarize the key findings clearly
-- For dangerous operations (DELETE, PUT, active-response), ALWAYS ask for user confirmation first
-- Present remediation steps in a prioritized, actionable order
-- Reference specific Wazuh rule IDs and MITRE ATT&CK techniques when relevant
-- If you're unsure about something, say so rather than guessing
-- Keep responses concise but thorough — bullet points for action items
+When a user asks about attacks, threats, suspicious activity, or security posture, follow these steps IN ORDER:
 
-When you need live data from Wazuh, use the available tools. When the user asks about a concept or best practice, use your knowledge directly.
+### Step 1 — INVESTIGATE (Get Wazuh Logs)
+Call the appropriate log tool to fetch real alert data:
+- `get_offenses_in_timeframe(minutes_ago)` — high-severity alerts
+- `get_bruteforce_hits(minutes_ago)` — brute force detections
+- `get_login_failures(user, minutes_ago)` — authentication failures
+- `search_by_event_id(event_id)` — specific rule ID
+- `generate_summary_report(field)` — statistical overview
 
-IMPORTANT: When calling tools that modify data (PUT, DELETE, POST methods), you MUST get explicit user confirmation first. Never auto-execute write operations."""
+### Step 2 — ANALYZE (Run AI Threat Classification)
+After getting Wazuh data, ALWAYS run the AI model:
+1. Call `get_network_flows(minutes_ago)` — extracts network traffic data from Wazuh
+2. Call `run_ai_analysis(flows)` — classifies threats with confidence scores
+The AI model returns: attack type, confidence %, threat count vs normal count.
+
+### Step 3 — SYNTHESIZE (Present Findings)
+Combine Wazuh alert data + AI predictions into a clear assessment:
+
+**Threat Summary**
+- What attacks are detected and from which sources
+- AI Classification: [attack type] — [X]% confidence
+- Severity and potential impact
+
+**AI Analysis Breakdown**
+- X flows analyzed, Y threats detected
+- Top threat types with confidence scores
+
+### Step 4 — RECOMMEND (Suggest Actions)
+Based on the attack type, suggest specific remediation steps. Format them as a numbered list.
+End with: **"Reply YES to execute these actions, or NO to skip."**
+
+Common remediation mappings:
+- SSH Brute Force → Block source IP via active-response (firewall-drop), review SSH config
+- Port Scan → Block scanning IP, disable unused ports
+- Malware / C2 → Block C2 IP, isolate agent, run FIM scan, run rootcheck
+- Lateral Movement → Investigate compromised agent, check privilege escalation alerts
+- Authentication Failures → Lock account, review PAM config
+
+### Step 5 — EXECUTE (Only On Explicit Confirmation)
+When the user replies YES (or "proceed", "do it", "yes please", "go ahead"):
+Use `universal_api_request()` to implement the changes. Examples:
+
+Block an IP via active response:
+  universal_api_request(
+    endpoint="/active-response",
+    method="PUT",
+    params={"agents_list": "all"},
+    confirm_write=True
+  )
+  (body note: include command="!firewall-drop" and the source IP in the alert field)
+
+Restart an agent:
+  universal_api_request(endpoint="/agents/{id}/restart", method="PUT", confirm_write=True)
+
+Run FIM scan:
+  universal_api_request(endpoint="/syscheck", method="PUT", params={"agents_list": "all"}, confirm_write=True)
+
+Run rootcheck:
+  universal_api_request(endpoint="/rootcheck", method="PUT", params={"agents_list": "all"}, confirm_write=True)
+
+## Hard Rules
+- NEVER call universal_api_request with PUT/POST/DELETE without explicit user YES
+- NEVER skip Steps 1-2 when asked about threats — always get real data first
+- NEVER make up alert data — if tools return empty, say so clearly
+- Always show AI confidence scores when presenting threat findings
+- Keep action lists short and prioritized (most critical first)
+- Reference MITRE ATT&CK technique IDs when relevant (e.g. T1110 for brute force)
+
+## For Non-Threat Questions
+If the user asks about concepts, configuration, or best practices — answer from knowledge directly without calling tools."""
 
 # ── Flask app ──
 app = Flask(__name__)
@@ -111,51 +167,37 @@ def retrieve_context(query: str, n_results: int = 5) -> str:
         return ""
 
 
-# ── MCP Bridge (lazy-loaded) ──
-mcp_bridge = None
-mcp_tools_ollama = None
-mcp_connected = False
+# ── MCP Bridge (per-user, credential-based) ──
 
-async def init_mcp():
-    """Initialize the MCP bridge connection."""
-    global mcp_bridge, mcp_tools_ollama, mcp_connected
+async def get_mcp_for_request(wazuh_ip: str, wazuh_user: str, wazuh_pass: str):
+    """
+    Return (bridge, tools_for_llm) for the given credentials.
+    Returns (None, None) if credentials are absent or connection fails.
+    """
+    if not wazuh_user or not wazuh_pass:
+        return None, None
     try:
         from mcp_bridge import get_bridge
-        mcp_bridge = await get_bridge()
-        tools = await mcp_bridge.list_tools()
-        mcp_tools_ollama = mcp_bridge.get_tools_for_llm(tools)
-        mcp_connected = True
-        print(f"[OK] MCP connected -- {len(tools)} tools available")
+        bridge = await get_bridge(wazuh_ip, wazuh_user, wazuh_pass)
+        tools  = await bridge.list_tools()
+        return bridge, bridge.get_tools_for_llm(tools)
     except Exception as e:
-        print(f"[WARN] MCP connection failed: {e}")
-        print("       Chatbot will work without live Wazuh tool access")
-        mcp_bridge = None
-        mcp_tools_ollama = None
-        mcp_connected = False
+        print(f"[WARN] MCP unavailable ({wazuh_user}@{wazuh_ip}): {e}")
+        return None, None
 
 
-async def execute_tool_call(name: str, arguments: dict) -> str:
-    """Execute a tool call via MCP and return the result as a string."""
-    if not mcp_bridge:
+async def execute_tool_call(bridge, name: str, arguments: dict) -> str:
+    """Execute a tool call via the provided MCP bridge."""
+    if not bridge:
         return json.dumps({"error": "MCP bridge not connected. Cannot execute Wazuh tools."})
-
     try:
-        result = await mcp_bridge.call_tool(name, arguments)
-
-        # Extract text content from MCP result
+        result        = await bridge.call_tool(name, arguments)
         content_parts = result.get("content", [])
-        text_parts = []
-        for part in content_parts:
-            if isinstance(part, dict) and part.get("type") == "text":
-                text_parts.append(part["text"])
-            elif isinstance(part, str):
-                text_parts.append(part)
-
-        if text_parts:
-            return "\n".join(text_parts)
-
-        return json.dumps(result, indent=2)
-
+        text_parts    = [
+            p["text"] if isinstance(p, dict) and p.get("type") == "text" else str(p)
+            for p in content_parts
+        ]
+        return "\n".join(text_parts) if text_parts else json.dumps(result, indent=2)
     except Exception as e:
         return json.dumps({"error": f"Tool execution failed: {str(e)}"})
 
@@ -209,69 +251,53 @@ def health():
         model_names = []
 
     return jsonify({
-        "status":        "ok" if ollama_ok else "degraded",
-        "ollama":        {"connected": ollama_ok, "model": OLLAMA_MODEL, "available_models": model_names},
-        "rag":           {"loaded": rag_collection is not None, "collection": COLLECTION},
-        "mcp":           {"connected": mcp_connected},
-        "timestamp":     time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "status":    "ok" if ollama_ok else "degraded",
+        "ollama":    {"connected": ollama_ok, "model": OLLAMA_MODEL, "available_models": model_names},
+        "rag":       {"loaded": rag_collection is not None, "collection": COLLECTION},
+        "mcp":       {"note": "per-user credential bridges — connect on first chat"},
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     })
 
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    """
-    Main chat endpoint.
-
-    Body JSON:
-    {
-        "message": "user message text",
-        "history": [
-            {"role": "user", "content": "..."},
-            {"role": "assistant", "content": "..."}
-        ],
-        "context": {
-            "ml_prediction": { ... },  // optional: current ML prediction to reason about
-            "sentinel_data": { ... }   // optional: current sentinel/alert data
-        }
-    }
-
-    Returns:
-    {
-        "response": "assistant message",
-        "tool_calls": [ ... ],   // tools that were called
-        "sources": [ ... ]       // RAG sources used
-    }
-    """
     body = request.get_json(silent=True)
     if not body or "message" not in body:
         return jsonify({"error": "Request body must contain 'message'"}), 400
 
-    user_message = body["message"]
-    history = body.get("history", [])
-    context = body.get("context", {})
+    user_message    = body["message"]
+    history         = body.get("history", [])
+    context         = body.get("context", {})
+    wazuh_ip        = body.get("wazuh_ip",       "127.0.0.1")
+    wazuh_user      = body.get("wazuh_user",      "")
+    wazuh_password  = body.get("wazuh_password",  "")
 
     try:
-        result = process_chat(user_message, history, context)
+        result = process_chat(user_message, history, context, wazuh_ip, wazuh_user, wazuh_password)
         return jsonify(result)
     except Exception as e:
         traceback.print_exc()
         return jsonify({
-            "response": f"I encountered an error: {str(e)}. Please try again.",
-            "error": str(e),
+            "response":   f"I encountered an error: {str(e)}. Please try again.",
+            "error":      str(e),
             "tool_calls": [],
-            "sources": [],
+            "sources":    [],
         }), 500
 
 
-def process_chat(user_message: str, history: list, context: dict) -> dict:
+def process_chat(user_message: str, history: list, context: dict,
+                 wazuh_ip: str = "127.0.0.1", wazuh_user: str = "", wazuh_pass: str = "") -> dict:
     """
     Process a chat message through the RAG + LLM + MCP pipeline.
-    Supports multi-turn tool calling (agentic loop).
+    MCP bridge is selected per the user's Wazuh credentials.
     """
     tool_calls_made = []
-    rag_sources = []
+    rag_sources     = []
 
-    # 1. Retrieve relevant knowledge via RAG
+    # 1. Get per-user MCP bridge
+    bridge, mcp_tools = run_async(get_mcp_for_request(wazuh_ip, wazuh_user, wazuh_pass))
+
+    # 2. Retrieve relevant knowledge via RAG
     rag_context = retrieve_context(user_message)
     if rag_context:
         rag_sources = list(set(
@@ -280,21 +306,17 @@ def process_chat(user_message: str, history: list, context: dict) -> dict:
             if "[Source:" in meta
         ))
 
-    # 2. Build the messages array for the LLM
+    # 3. Build messages for the LLM
     messages = _build_messages(user_message, history, rag_context, context)
 
-    # 3. Call LLM (with tool definitions if MCP is available)
-    max_tool_rounds = 5  # prevent infinite tool-call loops
-    final_response = ""
+    # 4. Agentic tool-call loop
+    max_tool_rounds = 5
+    final_response  = ""
 
     for round_num in range(max_tool_rounds + 1):
-        # Call Ollama
-        call_kwargs = {
-            "model": OLLAMA_MODEL,
-            "messages": messages,
-        }
-        if mcp_tools_ollama and round_num < max_tool_rounds:
-            call_kwargs["tools"] = mcp_tools_ollama
+        call_kwargs = {"model": OLLAMA_MODEL, "messages": messages}
+        if mcp_tools and round_num < max_tool_rounds:
+            call_kwargs["tools"] = mcp_tools
 
         try:
             response = ollama.chat(**call_kwargs)
@@ -302,38 +324,28 @@ def process_chat(user_message: str, history: list, context: dict) -> dict:
             error_msg = str(e)
             if "model" in error_msg.lower() and "not found" in error_msg.lower():
                 return {
-                    "response": f"⚠️ The LLM model `{OLLAMA_MODEL}` is not installed. Please run:\n```\nollama pull {OLLAMA_MODEL}\n```\nThen restart the chatbot service.",
+                    "response":   f"⚠️ The LLM model `{OLLAMA_MODEL}` is not installed. Please run:\n```\nollama pull {OLLAMA_MODEL}\n```\nThen restart the chatbot service.",
                     "tool_calls": [],
-                    "sources": rag_sources,
-                    "error": error_msg,
+                    "sources":    rag_sources,
+                    "error":      error_msg,
                 }
             raise
 
         msg = response.message
 
-        # Check if the LLM wants to call tools
         if msg.tool_calls:
-            # Add assistant message with tool calls to history
             messages.append({
-                "role": "assistant",
+                "role":    "assistant",
                 "content": msg.content or "",
                 "tool_calls": [
-                    {
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        }
-                    }
+                    {"function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                     for tc in msg.tool_calls
                 ],
             })
 
-            # Execute each tool call
             for tc in msg.tool_calls:
                 tool_name = tc.function.name
                 tool_args = tc.function.arguments
-
-                # Convert arguments if they're a string
                 if isinstance(tool_args, str):
                     try:
                         tool_args = json.loads(tool_args)
@@ -341,34 +353,24 @@ def process_chat(user_message: str, history: list, context: dict) -> dict:
                         tool_args = {}
 
                 print(f"  [TOOL] {tool_name}({json.dumps(tool_args)})")
-
-                # Execute via MCP bridge
-                tool_result = run_async(execute_tool_call(tool_name, tool_args))
+                tool_result = run_async(execute_tool_call(bridge, tool_name, tool_args))
 
                 tool_calls_made.append({
-                    "tool": tool_name,
-                    "arguments": tool_args,
+                    "tool":           tool_name,
+                    "arguments":      tool_args,
                     "result_preview": tool_result[:500] if len(tool_result) > 500 else tool_result,
                 })
+                messages.append({"role": "tool", "content": tool_result})
 
-                # Add tool result to messages
-                messages.append({
-                    "role": "tool",
-                    "content": tool_result,
-                })
-
-            # Continue the loop — LLM will process tool results
             continue
-
         else:
-            # No tool calls — we have the final response
             final_response = msg.content or ""
             break
 
     return {
-        "response": final_response,
+        "response":   final_response,
         "tool_calls": tool_calls_made,
-        "sources": rag_sources,
+        "sources":    rag_sources,
     }
 
 
@@ -432,11 +434,7 @@ def startup():
     # Init RAG
     init_rag()
 
-    # Init MCP (async)
-    try:
-        run_async(init_mcp())
-    except Exception as e:
-        print(f"[WARN] MCP init skipped: {e}")
+    print("[OK] MCP bridges connect on first chat request (per-user credentials)")
 
     # Check Ollama
     try:

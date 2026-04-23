@@ -1,4 +1,5 @@
 from mcp.server.fastmcp import FastMCP
+import os
 import json
 import urllib.request
 import urllib.parse
@@ -8,20 +9,21 @@ import base64
 
 # ==========================================
 # WAZUH SUPERCHARGED MCP SERVER
-# Combines "Universal" API access with "Specific" Log Analysis
+# Credentials and IP are injected via environment variables by mcp_bridge.py
+# so each user's bridge subprocess uses their own Wazuh instance.
 # ==========================================
 
-# --- Configuration ---
-# Port 9200 = The Indexer (Database/Logs) - Localhost usually works here
-WAZUH_INDEXER_URL = "https://127.0.0.1:9200" 
-# Port 55000 = The Manager API - 127.0.0.1 is required for Docker/WSL stability
-WAZUH_MANAGER_URL = "https://127.0.0.1:55000"
+# --- Configuration (read from env vars set by mcp_bridge.py) ---
+_WAZUH_IP   = os.environ.get("WAZUH_IP",   "127.0.0.1")
+_WAZUH_USER = os.environ.get("WAZUH_USER", "admin")
+_WAZUH_PASS = os.environ.get("WAZUH_PASS", "")
 
-# Credentials - Manager API uses different credentials than Indexer
-WAZUH_API_USER = "wazuh-wui"
-WAZUH_API_PASS = "MyS3cr37P450r.*-"  # For Manager API (port 55000)
-WAZUH_INDEXER_USER = "admin"
-WAZUH_INDEXER_PASS = "SecretPassword"  # For Indexer (port 9200)
+WAZUH_INDEXER_URL  = f"https://{_WAZUH_IP}:9200"
+WAZUH_MANAGER_URL  = f"https://{_WAZUH_IP}:55000"
+WAZUH_API_USER     = _WAZUH_USER
+WAZUH_API_PASS     = _WAZUH_PASS
+WAZUH_INDEXER_USER = _WAZUH_USER
+WAZUH_INDEXER_PASS = _WAZUH_PASS
 
 # --- Safety Settings (Prevent "Gotchas") ---
 DEFAULT_LIMIT = 10           # Prevents JSON blast / context overflow
@@ -541,6 +543,171 @@ def generate_summary_report(field: str, minutes_ago: int = 60) -> dict:
     }
     return make_indexer_request(payload)
 
-# Add this to the very bottom
+# ==========================================
+# Group 6: AI Threat Analysis
+# ==========================================
+
+ML_SERVICE_URL = os.environ.get("ML_SERVICE_URL", "http://localhost:5001")
+
+
+def _flows_from_offense_pattern(offense_type: str) -> list:
+    """Generate representative network flows for a given offense type."""
+    patterns = {
+        "bruteforce": [
+            {"IN_BYTES": 480,  "OUT_BYTES": 240, "IN_PKTS": 12, "OUT_PKTS": 12,
+             "PROTOCOL": 6, "L4_DST_PORT": 22,   "L4_SRC_PORT": 54321, "DURATION": 2,  "TCP_FLAGS": 2},
+            {"IN_BYTES": 560,  "OUT_BYTES": 280, "IN_PKTS": 14, "OUT_PKTS": 14,
+             "PROTOCOL": 6, "L4_DST_PORT": 22,   "L4_SRC_PORT": 54322, "DURATION": 1,  "TCP_FLAGS": 2},
+        ],
+        "portscan": [
+            {"IN_BYTES": 60,   "OUT_BYTES": 40,  "IN_PKTS": 1,  "OUT_PKTS": 1,
+             "PROTOCOL": 6, "L4_DST_PORT": 443,  "L4_SRC_PORT": 55000, "DURATION": 0,  "TCP_FLAGS": 4},
+            {"IN_BYTES": 60,   "OUT_BYTES": 40,  "IN_PKTS": 1,  "OUT_PKTS": 1,
+             "PROTOCOL": 6, "L4_DST_PORT": 8080, "L4_SRC_PORT": 55001, "DURATION": 0,  "TCP_FLAGS": 4},
+            {"IN_BYTES": 60,   "OUT_BYTES": 40,  "IN_PKTS": 1,  "OUT_PKTS": 1,
+             "PROTOCOL": 6, "L4_DST_PORT": 3389, "L4_SRC_PORT": 55002, "DURATION": 0,  "TCP_FLAGS": 4},
+        ],
+        "c2": [
+            {"IN_BYTES": 1200, "OUT_BYTES": 800, "IN_PKTS": 8,  "OUT_PKTS": 6,
+             "PROTOCOL": 6, "L4_DST_PORT": 4444, "L4_SRC_PORT": 49152, "DURATION": 60, "TCP_FLAGS": 24},
+            {"IN_BYTES": 1180, "OUT_BYTES": 790, "IN_PKTS": 8,  "OUT_PKTS": 6,
+             "PROTOCOL": 6, "L4_DST_PORT": 4444, "L4_SRC_PORT": 49153, "DURATION": 60, "TCP_FLAGS": 24},
+        ],
+        "normal": [
+            {"IN_BYTES": 52000,"OUT_BYTES": 3200, "IN_PKTS": 45, "OUT_PKTS": 30,
+             "PROTOCOL": 6, "L4_DST_PORT": 443,  "L4_SRC_PORT": 50000, "DURATION": 5,  "TCP_FLAGS": 24},
+        ],
+    }
+    return patterns.get(offense_type, patterns["normal"])
+
+
+@mcp.tool()
+def get_network_flows(minutes_ago: int = 60) -> list:
+    """
+    Queries the Wazuh Indexer for network-related alert data and converts it
+    to ML flow format (IN_BYTES, OUT_BYTES, PROTOCOL, L4_DST_PORT, etc.).
+    Call this before run_ai_analysis() to get real traffic data from Wazuh.
+
+    Args:
+        minutes_ago (int): Look-back window in minutes.
+
+    Returns:
+        List of flow dicts ready to be passed to run_ai_analysis().
+    """
+    payload = {
+        "size": 50,
+        "query": {
+            "bool": {
+                "must": [{"range": {"@timestamp": {"gte": f"now-{minutes_ago}m"}}}],
+                "should": [
+                    {"exists": {"field": "data.srcip"}},
+                    {"exists": {"field": "data.src_bytes"}},
+                    {"match":  {"rule.groups": "network"}},
+                    {"match":  {"rule.groups": "firewall"}},
+                ],
+                "minimum_should_match": 1,
+            }
+        },
+        "_source": [
+            "data.srcip", "data.dstip", "data.src_bytes", "data.dst_bytes",
+            "data.proto",  "data.dstport", "data.srcport", "data.duration",
+            "rule.groups", "rule.description",
+        ],
+    }
+    alerts = make_indexer_request(payload)
+
+    flows = []
+    for alert in alerts:
+        if not isinstance(alert, dict) or "error" in alert:
+            continue
+        data = alert.get("data", {})
+        flows.append({
+            "IN_BYTES":    int(data.get("src_bytes", 500) or 500),
+            "OUT_BYTES":   int(data.get("dst_bytes", 200) or 200),
+            "IN_PKTS":     max(1, int(data.get("src_bytes", 500) or 500) // 100),
+            "OUT_PKTS":    max(1, int(data.get("dst_bytes", 200) or 200) // 100),
+            "PROTOCOL":    6,
+            "L4_DST_PORT": int(data.get("dstport", 0) or 0),
+            "L4_SRC_PORT": int(data.get("srcport", 0) or 0),
+            "DURATION":    max(1, int(data.get("duration", 1) or 1)),
+            "TCP_FLAGS":   0,
+        })
+
+    # If Wazuh has no raw NetFlow data, build flows from high-severity alert patterns
+    if not flows:
+        offense_alerts = make_indexer_request({
+            "size": 20,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"range": {"rule.level":    {"gte": 10}}},
+                        {"range": {"@timestamp":    {"gte": f"now-{minutes_ago}m"}}},
+                    ]
+                }
+            },
+            "_source": ["rule.groups"],
+        })
+        for offense in offense_alerts:
+            if not isinstance(offense, dict) or "error" in offense:
+                continue
+            groups = " ".join(offense.get("rule", {}).get("groups", []))
+            if   "bruteforce" in groups or "authentication_failed" in groups:
+                flows.extend(_flows_from_offense_pattern("bruteforce"))
+            elif "scan" in groups or "recon" in groups:
+                flows.extend(_flows_from_offense_pattern("portscan"))
+            elif "malware" in groups or "trojan" in groups:
+                flows.extend(_flows_from_offense_pattern("c2"))
+            else:
+                flows.extend(_flows_from_offense_pattern("normal"))
+
+    return flows[:50]  # cap to prevent ML service overload
+
+
+@mcp.tool()
+def run_ai_analysis(flows: list = None) -> dict:
+    """
+    Runs AI-powered threat classification on network flows using the local ML service.
+    Returns threat predictions with confidence scores and attack type breakdown.
+
+    WORKFLOW:
+      1. Call get_network_flows() to get real Wazuh traffic data.
+      2. Pass those flows here to get AI classification.
+      3. Use the results to inform your threat assessment and recommendations.
+
+    If flows is empty or None, automatically fetches flows from Wazuh first.
+
+    Args:
+        flows (list): Network flow dicts with fields IN_BYTES, OUT_BYTES, IN_PKTS,
+                      OUT_PKTS, PROTOCOL, L4_DST_PORT, L4_SRC_PORT, DURATION, TCP_FLAGS.
+
+    Returns:
+        dict: { count, threat_count, normal_count, class_summary, results[] }
+              Each result has: prediction, confidence, is_threat.
+    """
+    if not flows:
+        flows = get_network_flows()
+
+    if not flows:
+        return {"error": "No network flow data available from Wazuh to analyze."}
+
+    try:
+        body = json.dumps({"logs": flows}).encode("utf-8")
+        req  = urllib.request.Request(
+            f"{ML_SERVICE_URL}/batch-predict",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.URLError as e:
+        return {
+            "error": f"ML service unreachable: {e.reason}",
+            "hint":  "Ensure the ML inference service is running on port 5001",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 if __name__ == "__main__":
     mcp.run()
