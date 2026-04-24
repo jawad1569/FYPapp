@@ -4,6 +4,9 @@ Loads trained model artifacts and serves predictions over HTTP.
 Later: Wazuh MCP → this service → SLM chatbot
 """
 
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import joblib
@@ -47,10 +50,70 @@ except Exception as e:
 
 
 # ─────────────────────────────────────────
+# HELPER — feature enrichment
+# ─────────────────────────────────────────
+def enrich_flow(raw: dict) -> dict:
+    """
+    Derive all 40 model features from the 9 basic fields that Wazuh can provide.
+    Without this, missing features default to zero and the model always predicts DDoS.
+    """
+    in_b   = float(raw.get("IN_BYTES",    0) or 0)
+    out_b  = float(raw.get("OUT_BYTES",   0) or 0)
+    in_p   = max(float(raw.get("IN_PKTS",  1) or 1), 1)
+    out_p  = max(float(raw.get("OUT_PKTS", 1) or 1), 1)
+    dur    = max(float(raw.get("DURATION", 1) or 1), 1)
+    proto  = float(raw.get("PROTOCOL",    6) or 6)
+    dport  = float(raw.get("L4_DST_PORT", 0) or 0)
+    sport  = float(raw.get("L4_SRC_PORT", 0) or 0)
+    flags  = float(raw.get("TCP_FLAGS",  24) or 24)
+
+    avg_in_pkt  = in_b / in_p
+    avg_out_pkt = out_b / out_p
+
+    enriched = dict(raw)
+    enriched.update({
+        "FLOW_DURATION_MILLISECONDS": dur * 1000,
+        "DURATION_IN":                dur,
+        "DURATION_OUT":               dur,
+        "MIN_TTL":                    64,
+        "MAX_TTL":                    128,
+        "LONGEST_FLOW_PKT":           max(avg_in_pkt, avg_out_pkt),
+        "SHORTEST_FLOW_PKT":          min(avg_in_pkt, avg_out_pkt),
+        "MIN_IP_PKT_LEN":             min(avg_in_pkt, avg_out_pkt),
+        "MAX_IP_PKT_LEN":             max(avg_in_pkt, avg_out_pkt),
+        "SRC_TO_DST_SECOND_BYTES":    in_b  / dur,
+        "DST_TO_SRC_SECOND_BYTES":    out_b / dur,
+        "RETRANSMITTED_IN_BYTES":     0,
+        "RETRANSMITTED_IN_PKTS":      0,
+        "RETRANSMITTED_OUT_BYTES":    0,
+        "RETRANSMITTED_OUT_PKTS":     0,
+        "SRC_TO_DST_AVG_THROUGHPUT":  in_b  * 8 / dur,
+        "DST_TO_SRC_AVG_THROUGHPUT":  out_b * 8 / dur,
+        "NUM_PKTS_UP_TO_128_BYTES":    in_p if avg_in_pkt <= 128              else 0,
+        "NUM_PKTS_128_TO_256_BYTES":   in_p if 128  < avg_in_pkt <= 256       else 0,
+        "NUM_PKTS_256_TO_512_BYTES":   in_p if 256  < avg_in_pkt <= 512       else 0,
+        "NUM_PKTS_512_TO_1024_BYTES":  in_p if 512  < avg_in_pkt <= 1024      else 0,
+        "NUM_PKTS_1024_TO_1514_BYTES": in_p if avg_in_pkt > 1024              else 0,
+        "TCP_WIN_MAX_IN":              65535 if proto == 6 else 0,
+        "TCP_WIN_MAX_OUT":             65535 if proto == 6 else 0,
+        "ICMP_TYPE":                   0,
+        "ICMP_IPV4_TYPE":              0,
+        "DNS_QUERY_ID":                0,
+        "DNS_QUERY_TYPE":              1 if dport == 53 else 0,
+        "DNS_TTL_ANSWER":              0,
+        "FTP_COMMAND_RET_CODE":        0,
+        "CLIENT_TCP_FLAGS":            flags,
+        "SERVER_TCP_FLAGS":            24 if proto == 6 else 0,
+    })
+    return enriched
+
+
+# ─────────────────────────────────────────
 # HELPER — single prediction
 # ─────────────────────────────────────────
 def classify_log(parsed_log: dict) -> dict:
     """Run RF inference on a single parsed network flow / Wazuh log."""
+    parsed_log = enrich_flow(parsed_log)
     fv = np.array(
         [parsed_log.get(feat, 0) for feat in feature_list],
         dtype=np.float32
@@ -159,6 +222,9 @@ def batch_predict():
         return jsonify({"error": "Max 500 logs per batch"}), 400
 
     try:
+        # Enrich each flow with derived features before vectorising
+        logs = [enrich_flow(log) for log in logs]
+
         # Vectorised batch for performance
         X = np.array(
             [[log.get(feat, 0) for feat in feature_list] for log in logs],

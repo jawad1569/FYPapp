@@ -21,29 +21,42 @@ MCP_PYTHON = os.environ.get("MCP_PYTHON", sys.executable)
 class MCPBridge:
     """
     Manages one MCP server subprocess for a specific set of Wazuh credentials.
+    Carries separate credentials for the Indexer (port 9200) and Manager API (port 55000).
     """
 
-    def __init__(self, wazuh_ip: str, wazuh_user: str, wazuh_pass: str):
-        self._wazuh_ip   = wazuh_ip
-        self._wazuh_user = wazuh_user
-        self._wazuh_pass = wazuh_pass
-        self._process    = None
-        self._reader     = None
-        self._writer     = None
-        self._request_id = 0
+    def __init__(self, wazuh_ip: str, indexer_ip: str = "",
+                 idx_user: str = "", idx_pass: str = "",
+                 api_user: str = "", api_pass: str = ""):
+        self._wazuh_ip    = wazuh_ip
+        self._indexer_ip  = indexer_ip or wazuh_ip
+        self._idx_user    = idx_user
+        self._idx_pass    = idx_pass
+        self._api_user    = api_user
+        self._api_pass    = api_pass
+        self._process     = None
+        self._reader      = None
+        self._writer      = None
+        self._request_id  = 0
         self._tools_cache = None
-        self._lock       = asyncio.Lock()
+        self._lock        = asyncio.Lock()
 
     async def connect(self):
         abs_script = os.path.abspath(MCP_SERVER_SCRIPT)
         if not os.path.exists(abs_script):
             raise FileNotFoundError(f"MCP server script not found: {abs_script}")
 
-        # Pass credentials and service URLs to the subprocess via environment variables
         env = os.environ.copy()
-        env["WAZUH_IP"]       = self._wazuh_ip
-        env["WAZUH_USER"]     = self._wazuh_user
-        env["WAZUH_PASS"]     = self._wazuh_pass
+        env["WAZUH_IP"]         = self._wazuh_ip
+        env["WAZUH_INDEXER_IP"] = self._indexer_ip
+        # Indexer (port 9200)
+        env["WAZUH_IDX_USER"] = self._idx_user
+        env["WAZUH_IDX_PASS"] = self._idx_pass
+        # Manager API (port 55000)
+        env["WAZUH_API_USER"] = self._api_user
+        env["WAZUH_API_PASS"] = self._api_pass
+        # Legacy fallback — some tools may still read WAZUH_USER/WAZUH_PASS
+        env["WAZUH_USER"]     = self._idx_user
+        env["WAZUH_PASS"]     = self._idx_pass
         env["ML_SERVICE_URL"] = os.environ.get("ML_SERVICE_URL", "http://localhost:5001")
 
         self._process = await asyncio.create_subprocess_exec(
@@ -148,29 +161,40 @@ class MCPBridge:
 _bridges: dict = {}
 
 
-def _cache_key(wazuh_ip: str, wazuh_user: str, wazuh_pass: str) -> str:
-    return hashlib.md5(f"{wazuh_ip}:{wazuh_user}:{wazuh_pass}".encode()).hexdigest()
+def _cache_key(wazuh_ip: str, idx_user: str, idx_pass: str, api_user: str, api_pass: str) -> str:
+    return hashlib.md5(f"{wazuh_ip}:{idx_user}:{idx_pass}:{api_user}:{api_pass}".encode()).hexdigest()
 
 
-async def get_bridge(wazuh_ip: str, wazuh_user: str, wazuh_pass: str) -> MCPBridge:
+async def get_bridge(wazuh_ip: str, wazuh_indexer_ip: str = "",
+                     idx_user: str = "", idx_pass: str = "",
+                     api_user: str = "", api_pass: str = "") -> MCPBridge:
     """
     Return a live MCPBridge for these credentials, creating one if needed.
-    If the cached subprocess has died, it is replaced automatically.
+    idx_*  = Wazuh Indexer (port 9200) credentials  — e.g. admin
+    api_*  = Wazuh Manager API (port 55000) creds   — e.g. wazuh-wui
+    Falls back to idx creds for the API if api_user is not provided.
     """
-    key = _cache_key(wazuh_ip, wazuh_user, wazuh_pass)
+    effective_indexer_ip = wazuh_indexer_ip or wazuh_ip
+    effective_api_user   = api_user or idx_user
+    effective_api_pass   = api_pass or idx_pass
+
+    key = _cache_key(wazuh_ip, idx_user, idx_pass, effective_api_user, effective_api_pass)
 
     if key in _bridges and _bridges[key].is_alive():
         return _bridges[key]
 
-    # Remove stale entry if any
     if key in _bridges:
         await _bridges[key].disconnect()
         del _bridges[key]
 
-    bridge = MCPBridge(wazuh_ip=wazuh_ip, wazuh_user=wazuh_user, wazuh_pass=wazuh_pass)
+    bridge = MCPBridge(
+        wazuh_ip=wazuh_ip, indexer_ip=effective_indexer_ip,
+        idx_user=idx_user, idx_pass=idx_pass,
+        api_user=effective_api_user, api_pass=effective_api_pass,
+    )
     await bridge.connect()
     _bridges[key] = bridge
-    print(f"[MCP] New bridge connected for {wazuh_user}@{wazuh_ip}")
+    print(f"[MCP] New bridge: indexer={idx_user}@{effective_indexer_ip}:9200  api={effective_api_user}@{wazuh_ip}:55000")
     return bridge
 
 

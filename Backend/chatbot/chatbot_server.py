@@ -169,20 +169,23 @@ def retrieve_context(query: str, n_results: int = 5) -> str:
 
 # ── MCP Bridge (per-user, credential-based) ──
 
-async def get_mcp_for_request(wazuh_ip: str, wazuh_user: str, wazuh_pass: str):
+async def get_mcp_for_request(wazuh_ip: str, wazuh_indexer_ip: str,
+                              idx_user: str, idx_pass: str,
+                              api_user: str = "", api_pass: str = ""):
     """
     Return (bridge, tools_for_llm) for the given credentials.
+    idx_* = Indexer (port 9200), api_* = Manager API (port 55000).
     Returns (None, None) if credentials are absent or connection fails.
     """
-    if not wazuh_user or not wazuh_pass:
+    if not idx_user or not idx_pass:
         return None, None
     try:
         from mcp_bridge import get_bridge
-        bridge = await get_bridge(wazuh_ip, wazuh_user, wazuh_pass)
+        bridge = await get_bridge(wazuh_ip, wazuh_indexer_ip, idx_user, idx_pass, api_user, api_pass)
         tools  = await bridge.list_tools()
         return bridge, bridge.get_tools_for_llm(tools)
     except Exception as e:
-        print(f"[WARN] MCP unavailable ({wazuh_user}@{wazuh_ip}): {e}")
+        print(f"[WARN] MCP unavailable ({idx_user}@{wazuh_ip}): {e}")
         return None, None
 
 
@@ -268,12 +271,18 @@ def chat():
     user_message    = body["message"]
     history         = body.get("history", [])
     context         = body.get("context", {})
-    wazuh_ip        = body.get("wazuh_ip",       "127.0.0.1")
-    wazuh_user      = body.get("wazuh_user",      "")
-    wazuh_password  = body.get("wazuh_password",  "")
+    wazuh_ip         = body.get("wazuh_ip",         "127.0.0.1")
+    wazuh_indexer_ip = body.get("wazuh_indexer_ip", wazuh_ip)   # separate IP for indexer
+    wazuh_idx_user   = body.get("wazuh_idx_user",   body.get("wazuh_user", ""))
+    wazuh_idx_pass   = body.get("wazuh_idx_pass",   body.get("wazuh_password", ""))
+    wazuh_api_user   = body.get("wazuh_api_user",   "")
+    wazuh_api_pass   = body.get("wazuh_api_pass",   "")
 
     try:
-        result = process_chat(user_message, history, context, wazuh_ip, wazuh_user, wazuh_password)
+        result = process_chat(user_message, history, context,
+                              wazuh_ip, wazuh_indexer_ip,
+                              wazuh_idx_user, wazuh_idx_pass,
+                              wazuh_api_user, wazuh_api_pass)
         return jsonify(result)
     except Exception as e:
         traceback.print_exc()
@@ -286,16 +295,20 @@ def chat():
 
 
 def process_chat(user_message: str, history: list, context: dict,
-                 wazuh_ip: str = "127.0.0.1", wazuh_user: str = "", wazuh_pass: str = "") -> dict:
+                 wazuh_ip: str = "127.0.0.1",
+                 wazuh_indexer_ip: str = "",
+                 idx_user: str = "", idx_pass: str = "",
+                 api_user: str = "", api_pass: str = "") -> dict:
     """
     Process a chat message through the RAG + LLM + MCP pipeline.
-    MCP bridge is selected per the user's Wazuh credentials.
+    idx_* = Indexer credentials (port 9200), api_* = Manager API credentials (port 55000).
     """
     tool_calls_made = []
     rag_sources     = []
 
+    effective_indexer_ip = wazuh_indexer_ip or wazuh_ip
     # 1. Get per-user MCP bridge
-    bridge, mcp_tools = run_async(get_mcp_for_request(wazuh_ip, wazuh_user, wazuh_pass))
+    bridge, mcp_tools = run_async(get_mcp_for_request(wazuh_ip, effective_indexer_ip, idx_user, idx_pass, api_user, api_pass))
 
     # 2. Retrieve relevant knowledge via RAG
     rag_context = retrieve_context(user_message)

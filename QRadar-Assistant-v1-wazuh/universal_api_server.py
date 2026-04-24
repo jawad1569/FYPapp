@@ -14,16 +14,23 @@ import base64
 # ==========================================
 
 # --- Configuration (read from env vars set by mcp_bridge.py) ---
-_WAZUH_IP   = os.environ.get("WAZUH_IP",   "127.0.0.1")
-_WAZUH_USER = os.environ.get("WAZUH_USER", "admin")
-_WAZUH_PASS = os.environ.get("WAZUH_PASS", "")
+_WAZUH_IP         = os.environ.get("WAZUH_IP",         "127.0.0.1")
+_WAZUH_INDEXER_IP = os.environ.get("WAZUH_INDEXER_IP", _WAZUH_IP)  # separate IP for indexer if needed
 
-WAZUH_INDEXER_URL  = f"https://{_WAZUH_IP}:9200"
+# Manager API credentials (port 55000)
+_WAZUH_API_USER = os.environ.get("WAZUH_API_USER", os.environ.get("WAZUH_USER", "wazuh-wui"))
+_WAZUH_API_PASS = os.environ.get("WAZUH_API_PASS", os.environ.get("WAZUH_PASS", ""))
+
+# Indexer credentials (port 9200)
+_WAZUH_IDX_USER = os.environ.get("WAZUH_IDX_USER", os.environ.get("WAZUH_USER", "admin"))
+_WAZUH_IDX_PASS = os.environ.get("WAZUH_IDX_PASS", os.environ.get("WAZUH_PASS", ""))
+
+WAZUH_INDEXER_URL  = f"https://{_WAZUH_INDEXER_IP}:9200"
 WAZUH_MANAGER_URL  = f"https://{_WAZUH_IP}:55000"
-WAZUH_API_USER     = _WAZUH_USER
-WAZUH_API_PASS     = _WAZUH_PASS
-WAZUH_INDEXER_USER = _WAZUH_USER
-WAZUH_INDEXER_PASS = _WAZUH_PASS
+WAZUH_API_USER     = _WAZUH_API_USER
+WAZUH_API_PASS     = _WAZUH_API_PASS
+WAZUH_INDEXER_USER = _WAZUH_IDX_USER
+WAZUH_INDEXER_PASS = _WAZUH_IDX_PASS
 
 # --- Safety Settings (Prevent "Gotchas") ---
 DEFAULT_LIMIT = 10           # Prevents JSON blast / context overflow
