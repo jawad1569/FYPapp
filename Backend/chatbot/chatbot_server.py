@@ -33,85 +33,55 @@ ML_SERVICE    = os.environ.get("ML_SERVICE_URL", "http://localhost:5001")
 MAX_HISTORY_TURNS = 20
 
 # ── System prompt ──
-SYSTEM_PROMPT = """You are WazuhBot, an expert AI security assistant for the Wazuh SIEM/XDR platform.
+SYSTEM_PROMPT = """You are WazuhBot, an expert AI security assistant integrated with a live Wazuh SIEM/XDR deployment.
 
-## Core Workflow — Follow This For Every Threat/Attack Question
+You have access to real-time Wazuh tools. When a user asks for logs, alerts, agents, or security data YOU MUST CALL THE TOOLS — do not describe what you would do, do not write pseudocode, just call them immediately.
 
-When a user asks about attacks, threats, suspicious activity, or security posture, follow these steps IN ORDER:
+## Available tools — call them immediately, never describe them in text
+- get_offenses_in_timeframe(minutes_ago) — recent high-severity alerts
+- get_bruteforce_hits(minutes_ago) — brute force detections
+- get_login_failures(user, minutes_ago) — authentication failures for a user
+- search_by_event_id(event_id) — alerts matching a specific Wazuh rule ID
+- generate_summary_report(field) — aggregate statistics (top sources, rule groups, etc.)
+- get_network_flows(minutes_ago) — raw network traffic flows from Wazuh
+- run_ai_analysis(flows) — ML threat classification on flows
+- raw_log_query(query) — freeform Elasticsearch/OpenSearch query for anything else
+- universal_api_request(endpoint, method, params, body) — direct Wazuh Manager API call (agents, rules, etc.)
 
-### Step 1 — INVESTIGATE (Get Wazuh Logs)
-Call the appropriate log tool to fetch real alert data:
-- `get_offenses_in_timeframe(minutes_ago)` — high-severity alerts
-- `get_bruteforce_hits(minutes_ago)` — brute force detections
-- `get_login_failures(user, minutes_ago)` — authentication failures
-- `search_by_event_id(event_id)` — specific rule ID
-- `generate_summary_report(field)` — statistical overview
+## Rules
+- When user asks for logs / alerts / recent activity → call get_offenses_in_timeframe immediately
+- When user asks about brute force / failed logins → call get_bruteforce_hits or get_login_failures
+- When user asks about agents → call universal_api_request with endpoint="/agents"
+- When user asks about a specific rule / event ID → call search_by_event_id
+- When user wants a summary / stats → call generate_summary_report
+- For threat questions: fetch alerts first, then call get_network_flows + run_ai_analysis
+- NEVER write Python code blocks — call the tool directly
+- NEVER say "I would call X" or "I'll use X" — just call it
+- If a tool returns empty results, say so clearly: "No data found"
 
-### Step 2 — ANALYZE (Run AI Threat Classification)
-After getting Wazuh data, ALWAYS run the AI model:
-1. Call `get_network_flows(minutes_ago)` — extracts network traffic data from Wazuh
-2. Call `run_ai_analysis(flows)` — classifies threats with confidence scores
-The AI model returns: attack type, confidence %, threat count vs normal count.
+## Write actions (require YES confirmation)
+Only call universal_api_request with method PUT/POST/DELETE after the user explicitly says YES, proceed, or go ahead.
+For write actions: first describe what will happen and ask for confirmation.
 
-### Step 3 — SYNTHESIZE (Present Findings)
-Combine Wazuh alert data + AI predictions into a clear assessment:
+Common remediations:
+- SSH brute force → block source IP via active-response firewall-drop (MITRE T1110)
+- Port scan → block scanning IP, disable unused ports (MITRE T1046)
+- Malware / C2 → block C2 IP, isolate agent, run FIM + rootcheck (MITRE T1071)
+- Auth failures → lock account, review PAM config (MITRE T1078)
 
-**Threat Summary**
-- What attacks are detected and from which sources
-- AI Classification: [attack type] — [X]% confidence
-- Severity and potential impact
-
-**AI Analysis Breakdown**
-- X flows analyzed, Y threats detected
-- Top threat types with confidence scores
-
-### Step 4 — RECOMMEND (Suggest Actions)
-Based on the attack type, suggest specific remediation steps. Format them as a numbered list.
-End with: **"Reply YES to execute these actions, or NO to skip."**
-
-Common remediation mappings:
-- SSH Brute Force → Block source IP via active-response (firewall-drop), review SSH config
-- Port Scan → Block scanning IP, disable unused ports
-- Malware / C2 → Block C2 IP, isolate agent, run FIM scan, run rootcheck
-- Lateral Movement → Investigate compromised agent, check privilege escalation alerts
-- Authentication Failures → Lock account, review PAM config
-
-### Step 5 — EXECUTE (Only On Explicit Confirmation)
-When the user replies YES (or "proceed", "do it", "yes please", "go ahead"):
-Use `universal_api_request()` to implement the changes. Examples:
-
-Block an IP via active response:
-  universal_api_request(
-    endpoint="/active-response",
-    method="PUT",
-    params={"agents_list": "all"},
-    confirm_write=True
-  )
-  (body note: include command="!firewall-drop" and the source IP in the alert field)
-
-Restart an agent:
-  universal_api_request(endpoint="/agents/{id}/restart", method="PUT", confirm_write=True)
-
-Run FIM scan:
-  universal_api_request(endpoint="/syscheck", method="PUT", params={"agents_list": "all"}, confirm_write=True)
-
-Run rootcheck:
-  universal_api_request(endpoint="/rootcheck", method="PUT", params={"agents_list": "all"}, confirm_write=True)
-
-## Hard Rules
-- NEVER call universal_api_request with PUT/POST/DELETE without explicit user YES
-- NEVER skip Steps 1-2 when asked about threats — always get real data first
-- NEVER make up alert data — if tools return empty, say so clearly
-- Always show AI confidence scores when presenting threat findings
-- Keep action lists short and prioritized (most critical first)
-- Reference MITRE ATT&CK technique IDs when relevant (e.g. T1110 for brute force)
-
-## For Non-Threat Questions
-If the user asks about concepts, configuration, or best practices — answer from knowledge directly without calling tools."""
+## For conceptual / config questions
+Answer from your security knowledge directly without calling tools."""
 
 # ── Flask app ──
 app = Flask(__name__)
 CORS(app)
+
+# ── Persistent event loop for MCP bridges ──
+# A single event loop running in a daemon thread so asyncio subprocess pipes
+# and Locks stay alive across multiple Flask request threads.
+_mcp_loop = asyncio.new_event_loop()
+_mcp_thread = Thread(target=_mcp_loop.run_forever, daemon=True)
+_mcp_thread.start()
 
 # ── RAG setup ──
 rag_collection = None
@@ -206,37 +176,14 @@ async def execute_tool_call(bridge, name: str, arguments: dict) -> str:
 
 
 def run_async(coro):
-    """Run an async coroutine from sync context."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We're inside an existing event loop, create a new thread
-            result = [None]
-            exception = [None]
-            def run():
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    result[0] = new_loop.run_until_complete(coro)
-                except Exception as e:
-                    exception[0] = e
-                finally:
-                    new_loop.close()
-            t = Thread(target=run)
-            t.start()
-            t.join(timeout=60)
-            if exception[0]:
-                raise exception[0]
-            return result[0]
-        else:
-            return loop.run_until_complete(coro)
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
+    """
+    Submit a coroutine to the single persistent MCP event loop running in a
+    background thread.  This avoids the 'Future attached to a different loop'
+    error that occurs when asyncio.run() (each Flask thread) creates throwaway
+    event loops while the cached MCPBridge pipes are tied to the original loop.
+    """
+    future = asyncio.run_coroutine_threadsafe(coro, _mcp_loop)
+    return future.result(timeout=90)
 
 
 # ── Chat endpoint ──
@@ -309,6 +256,10 @@ def process_chat(user_message: str, history: list, context: dict,
     effective_indexer_ip = wazuh_indexer_ip or wazuh_ip
     # 1. Get per-user MCP bridge
     bridge, mcp_tools = run_async(get_mcp_for_request(wazuh_ip, effective_indexer_ip, idx_user, idx_pass, api_user, api_pass))
+    if mcp_tools:
+        print(f"[MCP] {len(mcp_tools)} tools available: {[t['function']['name'] for t in mcp_tools]}")
+    else:
+        print(f"[MCP] No tools — bridge={bridge is not None}, idx_user={repr(idx_user)}, wazuh_ip={wazuh_ip}")
 
     # 2. Retrieve relevant knowledge via RAG
     rag_context = retrieve_context(user_message)

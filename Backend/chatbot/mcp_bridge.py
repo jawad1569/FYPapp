@@ -129,29 +129,35 @@ class MCPBridge:
         await self._write_message(msg)
 
     async def _write_message(self, msg: dict):
-        body   = json.dumps(msg)
-        header = f"Content-Length: {len(body)}\r\n\r\n"
-        self._writer.write(header.encode() + body.encode())
+        # mcp SDK v1.x uses newline-delimited JSON (not Content-Length framing)
+        line = json.dumps(msg) + "\n"
+        self._writer.write(line.encode())
         await self._writer.drain()
 
     async def _read_response(self, request_id: int, timeout: float = 30.0) -> dict:
         try:
             while True:
-                header_line = await asyncio.wait_for(self._reader.readline(), timeout=timeout)
-                if not header_line:
+                line = await asyncio.wait_for(self._reader.readline(), timeout=timeout)
+                if not line:
                     raise ConnectionError("MCP server closed connection")
 
-                header_str = header_line.decode().strip()
-                if header_str.startswith("Content-Length:"):
-                    content_length = int(header_str.split(":")[1].strip())
-                    await self._reader.readline()  # blank line
-                    body     = await asyncio.wait_for(self._reader.readexactly(content_length), timeout=timeout)
-                    response = json.loads(body.decode())
+                line = line.strip()
+                if not line:
+                    continue
 
-                    if response.get("id") == request_id:
-                        if "error" in response:
-                            raise Exception(f"MCP error: {response['error'].get('message', 'Unknown')}")
-                        return response.get("result", {})
+                try:
+                    response = json.loads(line.decode())
+                except json.JSONDecodeError:
+                    continue  # skip non-JSON lines (e.g. debug output)
+
+                # Skip server notifications (no "id" field)
+                if "id" not in response:
+                    continue
+
+                if response.get("id") == request_id:
+                    if "error" in response:
+                        raise Exception(f"MCP error: {response['error'].get('message', 'Unknown')}")
+                    return response.get("result", {})
         except asyncio.TimeoutError:
             raise TimeoutError(f"MCP server did not respond within {timeout}s")
 

@@ -1,0 +1,40 @@
+Loading model artifacts from: D:\FYP\Webapp\output
+✅ Model loaded — 40 features, 21 classes
+   Classes: ['Analysis', 'Backdoor', 'Bot', 'Brute Force', 'DDoS', 'DoS', 'Exploits', 'Fuzzers', 'Generic', 'Infilteration', 'Normal', 'Reconnaissance', 'Shellcode', 'Theft', 'Worms', 'injection', 'mitm', 'password', 'ransomware', 'scanning', 'xss']
+
+🚀 ML Inference Service starting on http://localhost:5001
+ * Serving Flask app 'inference_server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.13:5001
+Press CTRL+C to quit
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.1s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.1s finished
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.0s finished
+127.0.0.1 - - [25/Apr/2026 04:14:50] "POST /batch-predict HTTP/1.1" 200 -
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.0s finished
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.0s finished
+127.0.0.1 - - [25/Apr/2026 04:30:18] "POST /batch-predict HTTP/1.1" 200 -
+127.0.0.1 - - [25/Apr/2026 04:52:51] "GET /health HTTP/1.1" 200 -
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.0s finished
+[Parallel(n_jobs=12)]: Using backend ThreadingBackend with 12 concurrent workers.
+[Parallel(n_jobs=12)]: Done  26 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 176 tasks      | elapsed:    0.0s
+[Parallel(n_jobs=12)]: Done 200 out of 200 | elapsed:    0.0s finished
+127.0.0.1 - - [25/Apr/2026 11:48:33] "POST /batch-predict HTTP/1.1" 200 -
