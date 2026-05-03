@@ -269,8 +269,13 @@ universal_api_request(
 )
 
 ### Run active response command (WRITE - needs confirmation):
-# Note: This requires a request body, which universal_api_request doesn't support yet.
-# For body-based requests, consider extending the tool or using specific MCP tools.
+universal_api_request(
+    endpoint="/active-response",
+    method="PUT",
+    params={"agents_list": "001"},
+    body={"command": "!firewall-drop", "arguments": ["-", "null", "192.168.1.10"], "alert": {}},
+    confirm_write=True
+)
 
 ## Tips:
 1. Always start by checking wazuh://api-schema for valid endpoints
@@ -315,16 +320,17 @@ def get_api_token():
         return data['data']['token']
 
 @mcp.tool()
-def universal_api_request(endpoint: str, method: str = "GET", params: dict = None, confirm_write: bool = False) -> dict:
+def universal_api_request(endpoint: str, method: str = "GET", params: dict = None, body: dict = None, confirm_write: bool = False) -> dict:
     """
     MASTER TOOL: Executes ANY Wazuh Manager API request.
     IMPORTANT: Check wazuh://api-schema resource first to verify endpoints!
-    
+
     Args:
         endpoint (str): The API path (e.g., '/agents', '/syscheck/001/last_scan').
-        method (str): GET, PUT, DELETE. (PUT/DELETE require confirm_write=True)
+        method (str): GET, PUT, POST, DELETE. (PUT/POST/DELETE require confirm_write=True)
         params (dict): URL parameters (e.g., {'status': 'active', 'limit': 5}).
-        confirm_write (bool): Must be True to execute PUT/DELETE operations.
+        body (dict): JSON request body for PUT/POST requests (e.g., active response payload).
+        confirm_write (bool): Must be True to execute PUT/POST/DELETE operations.
     """
     
     # === SAFETY CHECK 1: Block writes in read-only mode ===
@@ -345,18 +351,18 @@ def universal_api_request(endpoint: str, method: str = "GET", params: dict = Non
             "blocked_request": {"endpoint": endpoint, "method": method, "params": params}
         }
     
-    # === SAFETY CHECK 3: Enforce default limit to prevent JSON blast ===
+    # === SAFETY CHECK 3: Enforce default limit to prevent JSON blast (GET only) ===
     if params is None:
         params = {}
-    if 'limit' not in params:
-        params['limit'] = DEFAULT_LIMIT  # Prevent context window overflow
-    else:
-        # Cap the limit even if explicitly set
-        try:
-            requested_limit = int(params['limit'])
-            params['limit'] = min(requested_limit, MAX_LIMIT)
-        except (ValueError, TypeError):
+    if method == "GET":
+        if 'limit' not in params:
             params['limit'] = DEFAULT_LIMIT
+        else:
+            try:
+                requested_limit = int(params['limit'])
+                params['limit'] = min(requested_limit, MAX_LIMIT)
+            except (ValueError, TypeError):
+                params['limit'] = DEFAULT_LIMIT
     
     try:
         token = get_api_token()
@@ -377,7 +383,8 @@ def universal_api_request(endpoint: str, method: str = "GET", params: dict = Non
         'Content-Type': 'application/json'
     }
     
-    req = urllib.request.Request(full_url, headers=headers, method=method)
+    encoded_body = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(full_url, data=encoded_body, headers=headers, method=method)
 
     try:
         with urllib.request.urlopen(req, context=get_ssl_context(), timeout=30) as response:
