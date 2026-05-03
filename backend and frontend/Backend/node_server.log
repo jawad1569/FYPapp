@@ -1,0 +1,231 @@
+
+> wazuhbot-backend@1.0.0 dev
+> node --watch server.js
+
+✅ MySQL connected
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Get messages error: SyntaxError: Unexpected token 'w', "wazuh_arch"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:106:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'w', "wazuh_arch"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:106:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'w', "wazuh_defe"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:106:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Restarting 'server.js'
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'w', "wazuh_arch"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:106:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'w', "wazuh_arch"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:106:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Get messages error: SyntaxError: Unexpected token 'o', "[object Obj"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:105:38
+    at Array.map (<anonymous>)
+    at D:\FYP\Webapp\backend and frontend\Backend\routes\chats.js:101:27
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Restarting 'server.js'
+✅ MySQL connected
+✅ users table ready
+✅ conversations + messages tables ready
+🚀 Backend running on http://localhost:5000
+Failed running 'server.js'. Waiting for file changes before restarting...
