@@ -1,6 +1,8 @@
-# WazuhBot — AI-Powered Security Operations Assistant
+# WazuhBot — Agentic AI Security Operations Assistant for Wazuh SIEM/XDR
 
-WazuhBot is an AI-driven cybersecurity assistant built on top of [Wazuh](https://wazuh.com/), an open-source SIEM and XDR platform. It gives security analysts a natural-language interface to their Wazuh deployment — letting them investigate threats, understand alerts, and get remediation guidance through a conversation instead of manually navigating dashboards and logs.
+WazuhBot is an agentic AI layer built on top of [Wazuh](https://wazuh.com/), an open-source SIEM and XDR platform. It gives security analysts a natural-language interface to their Wazuh deployment — letting them investigate threats, understand alerts, and get remediation guidance through conversation instead of manually navigating dashboards and logs.
+
+Unlike a simple chatbot wrapper, WazuhBot is *agentic* — it reasons across multiple steps, calls live Wazuh tools, retrieves from a security knowledge base, runs ML inference, and can take direct actions like blocking an attacker IP via Wazuh Active Response. All inference runs locally via Ollama, so no data leaves your network.
 
 ---
 
@@ -40,7 +42,7 @@ Express API  ──────────────────── MySQL 
     │
     ├──► Chatbot Service (Python)
     │         │
-    │         ├── Ollama LLM (qwen2.5:3b, runs locally)
+    │         ├── Ollama LLM (local, model-agnostic)
     │         ├── ChromaDB RAG (security knowledge base)
     │         └── MCP Bridge ──► Wazuh Manager API + Indexer
     │
@@ -50,7 +52,7 @@ Express API  ──────────────────── MySQL 
 
 When you send a message, the chatbot service decides whether to answer from the knowledge base, query your Wazuh deployment via the MCP bridge, run an ML prediction, or a combination of all three. The LLM synthesises the results into a single coherent response.
 
-All LLM inference runs locally via Ollama — no API keys, no data sent to third parties.
+The LLM runs locally via Ollama — no API keys, no data sent to third parties. See [Choosing a Model](#choosing-a-model) for compatible options.
 
 ---
 
@@ -61,11 +63,11 @@ Before starting, make sure you have the following installed:
 - [Node.js](https://nodejs.org/) >= 18
 - [Python](https://www.python.org/) >= 3.11
 - [MySQL](https://dev.mysql.com/downloads/) 8.0
-- [Ollama](https://ollama.com/) with the `qwen2.5:3b` model
+- [Ollama](https://ollama.com/) with a tool-calling-capable model (see [Choosing a Model](#choosing-a-model))
 
 ```bash
-# Install the LLM model (one-time)
-ollama pull qwen2.5:3b
+# Example — pull a recommended model
+ollama pull llama3.1:8b
 ```
 
 You also need a running Wazuh deployment (Manager + Indexer) reachable from the machine running WazuhBot. Each user provides their own Wazuh credentials at signup.
@@ -104,6 +106,9 @@ JWT_SECRET=replace_with_a_long_random_secret
 
 GMAIL_USER=your-email@gmail.com
 GMAIL_APP_PASSWORD=your-gmail-app-password
+
+# LLM (any Ollama model that supports tool calling)
+OLLAMA_MODEL=llama3.1:8b
 ```
 
 ### 3. Install dependencies
@@ -197,6 +202,36 @@ The chatbot's RAG system is grounded in a curated set of security documents:
 - **Defense Hardening** — host and network hardening recommendations surfaced during investigations
 
 These documents live in `Backend/chatbot/knowledge/` and can be extended with your own organisation's runbooks.
+
+---
+
+## Choosing a Model
+
+WazuhBot works with any model available in Ollama. The only requirement is that the model supports **tool calling** — this is what allows the LLM to query Wazuh, run ML analysis, and trigger active response. Models that don't support tool calling will still answer questions from the knowledge base, but won't be able to call live Wazuh tools.
+
+Set your chosen model in the environment file:
+
+```env
+OLLAMA_MODEL=llama3.1:8b
+```
+
+Then pull it before starting:
+
+```bash
+ollama pull llama3.1:8b
+```
+
+Recommended models, in order of capability:
+
+| Model | Size | Tool Calling | Notes |
+|---|---|---|---|
+| `llama3.1:8b` | 8B | Good | Strong reasoning, reliable tool calling |
+| `hermes3:8b` | 8B | Very good | Fine-tuned for function calling |
+| `qwen2.5:7b` | 7B | Good | Fast, good at structured outputs |
+| `mistral:7b` | 7B | Decent | Good general performance |
+| `llama3.2:3b` | 3B | Decent | Lightweight option |
+
+Larger models (7B–8B) produce significantly more reliable tool calls than 3B models, which is important for multi-step threat investigations. If you are constrained on VRAM, `llama3.2:3b` is the best small option.
 
 ---
 
