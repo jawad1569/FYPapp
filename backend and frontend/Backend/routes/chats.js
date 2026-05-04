@@ -98,12 +98,13 @@ router.get('/:id/messages', async (req, res) => {
       [req.params.id]
     );
 
+    const parseCol = v => !v ? [] : typeof v === 'string' ? JSON.parse(v) : v;
     const messages = rows.map(r => ({
       role:      r.role,
       content:   r.content,
       timestamp: r.timestamp,
-      toolCalls: r.tool_calls ? JSON.parse(r.tool_calls) : [],
-      sources:   r.sources    ? JSON.parse(r.sources)    : [],
+      toolCalls: parseCol(r.tool_calls),
+      sources:   parseCol(r.sources),
       isError:   !!r.is_error,
     }));
 
