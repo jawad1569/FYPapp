@@ -13,7 +13,7 @@ import asyncio
 
 MCP_SERVER_SCRIPT = os.environ.get(
     "MCP_SERVER_SCRIPT",
-    os.path.join(os.path.dirname(__file__), "..", "..", "QRadar-Assistant-v1-wazuh", "universal_api_server.py")
+    os.path.join(os.path.dirname(__file__), "..", "..", "MCP", "universal_api_server.py")
 )
 MCP_PYTHON = os.environ.get("MCP_PYTHON", sys.executable)
 

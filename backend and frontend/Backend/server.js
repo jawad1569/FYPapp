@@ -77,6 +77,7 @@ async function startServer() {
       `ALTER TABLE users ADD COLUMN wazuh_password     VARCHAR(512) DEFAULT ''`,
       `ALTER TABLE users ADD COLUMN wazuh_api_user     VARCHAR(100) DEFAULT ''`,
       `ALTER TABLE users ADD COLUMN wazuh_api_password VARCHAR(512) DEFAULT ''`,
+      `ALTER TABLE users ADD COLUMN wazuh_indexer_ip   VARCHAR(100) DEFAULT ''`,
     ]) {
       await pool.execute(ddl).catch(() => {});
     }

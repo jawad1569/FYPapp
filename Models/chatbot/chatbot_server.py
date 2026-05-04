@@ -10,6 +10,7 @@ Usage:
 import os
 import sys
 import json
+import re
 import asyncio
 import time
 import traceback
@@ -48,12 +49,12 @@ You have access to real-time Wazuh tools. When a user asks for logs, alerts, age
 - raw_log_query(query) — freeform Elasticsearch/OpenSearch query for anything else
 - universal_api_request(endpoint, method, params, body, confirm_write) — direct Wazuh Manager API call (agents, rules, etc.). Set confirm_write=True for PUT/POST/DELETE operations.
 
-## Rules
+## Rules (apply top-to-bottom; first match wins)
+- When user asks about agents (list, status, count, summary of agents, active agents, disconnected agents) → call universal_api_request with endpoint="/agents" — NEVER use generate_summary_report for agents
 - When user asks for logs / alerts / recent activity → call get_offenses_in_timeframe immediately
 - When user asks about brute force / failed logins → call get_bruteforce_hits or get_login_failures
-- When user asks about agents → call universal_api_request with endpoint="/agents"
 - When user asks about a specific rule / event ID → call search_by_event_id
-- When user wants a summary / stats → call generate_summary_report
+- When user wants a summary / stats about alerts, rules, or log sources → call generate_summary_report (NOT for agents — use universal_api_request for agents)
 - For threat questions: fetch alerts first, then call get_network_flows + run_ai_analysis
 - NEVER write Python code blocks — call the tool directly
 - NEVER say "I would call X" or "I'll use X" — just call it
@@ -241,6 +242,50 @@ def chat():
         }), 500
 
 
+_KNOWN_TOOLS = {
+    "get_offenses_in_timeframe", "get_bruteforce_hits", "get_login_failures",
+    "search_by_event_id", "generate_summary_report", "get_network_flows",
+    "run_ai_analysis", "raw_log_query", "universal_api_request",
+}
+_TEXT_TOOL_RE = re.compile(
+    r'\b(' + '|'.join(re.escape(t) for t in _KNOWN_TOOLS) + r')\(([^)]*)\)'
+)
+_KW_ARG_RE = re.compile(
+    r'(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|True|False|None|\[[^\]]*\]|\{[^}]*\}|\'[^\']*\')'
+)
+
+
+def _parse_text_tool_calls(text: str) -> list:
+    """
+    Fallback: detect tool calls written as plain text by the model, e.g.:
+      universal_api_request(endpoint="/agents")
+      get_offenses_in_timeframe(minutes_ago=60)
+    Returns list of {"name": ..., "arguments": {...}}.
+    """
+    results = []
+    for match in _TEXT_TOOL_RE.finditer(text):
+        name = match.group(1)
+        args_str = match.group(2).strip()
+        arguments = {}
+        if args_str:
+            if args_str.startswith('{'):
+                try:
+                    arguments = json.loads(args_str)
+                    results.append({"name": name, "arguments": arguments})
+                    continue
+                except json.JSONDecodeError:
+                    pass
+            for kw in _KW_ARG_RE.finditer(args_str):
+                key = kw.group(1)
+                val_str = kw.group(2)
+                try:
+                    arguments[key] = json.loads(val_str)
+                except json.JSONDecodeError:
+                    arguments[key] = val_str.strip("\"'")
+        results.append({"name": name, "arguments": arguments})
+    return results
+
+
 def process_chat(user_message: str, history: list, context: dict,
                  wazuh_ip: str = "127.0.0.1",
                  wazuh_indexer_ip: str = "",
@@ -328,6 +373,26 @@ def process_chat(user_message: str, history: list, context: dict,
 
             continue
         else:
+            # Fallback: model wrote a tool call as plain text instead of structured call
+            text_calls = _parse_text_tool_calls(msg.content or "")
+            if text_calls and bridge and round_num < max_tool_rounds:
+                messages.append({
+                    "role":    "assistant",
+                    "content": msg.content or "",
+                })
+                for tc in text_calls:
+                    tool_name = tc["name"]
+                    tool_args = tc["arguments"]
+                    print(f"  [TOOL-TEXT] {tool_name}({json.dumps(tool_args)})")
+                    tool_result = run_async(execute_tool_call(bridge, tool_name, tool_args))
+                    tool_calls_made.append({
+                        "tool":           tool_name,
+                        "arguments":      tool_args,
+                        "result_preview": tool_result[:500] if len(tool_result) > 500 else tool_result,
+                    })
+                    messages.append({"role": "tool", "content": tool_result})
+                continue
+
             final_response = msg.content or ""
             break
 
