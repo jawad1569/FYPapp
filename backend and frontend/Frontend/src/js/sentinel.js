@@ -8,6 +8,7 @@ let sentinelTab      = 'offenses';
 let logInterval      = null;
 let dataInterval     = null;
 let liveLogInterval  = null;
+let aiAnalysisInterval = null;
 
 /* ── API Config ── */
 const SENTINEL_API = window.location.hostname === 'localhost'
@@ -26,6 +27,7 @@ const DEFAULT_INTERVALS = {
   epsUpdate:    2000,
   offenseCheck: 30000,
   sourceCheck:  60000,
+  aiAnalysis:   300000,
 };
 
 function loadIntervals() {
@@ -372,6 +374,7 @@ function openSentinel() {
     updateBadges();
     checkAndAlertCritical();
     startLiveLogPoll();
+    startAiAnalysisInterval();
   });
 }
 
@@ -387,6 +390,7 @@ function closeSentinel() {
   clearInterval(logInterval);
   clearInterval(dataInterval);
   clearInterval(liveLogInterval);
+  clearInterval(aiAnalysisInterval);
 
   // Re-render the chat view so it's in sync with current state
   if (_onCloseCallback) _onCloseCallback();
@@ -592,6 +596,7 @@ function initSentinelSettings() {
     'ss-epsUpdate':    'epsUpdate',
     'ss-offenseCheck': 'offenseCheck',
     'ss-sourceCheck':  'sourceCheck',
+    'ss-aiAnalysis':   'aiAnalysis',
   };
 
   // Set each select to the closest saved value
@@ -612,8 +617,10 @@ function initSentinelSettings() {
       if (sentinelActive) {
         clearInterval(logInterval);
         clearInterval(dataInterval);
+        clearInterval(aiAnalysisInterval);
         startLogStream();
         startDataUpdates();
+        startAiAnalysisInterval();
       }
     });
   }
@@ -713,6 +720,15 @@ function startLiveLogPoll() {
   liveLogInterval = setInterval(() => {
     if (sentinelActive) fetchRecentLogs();
   }, 30000);
+}
+
+/* ── Auto AI analysis ── */
+function startAiAnalysisInterval() {
+  clearInterval(aiAnalysisInterval);
+  if (usingDemoData) return;
+  aiAnalysisInterval = setInterval(() => {
+    if (sentinelActive) runAiAnalysis();
+  }, intervals.aiAnalysis);
 }
 
 /* ── EPS jitter ── */
